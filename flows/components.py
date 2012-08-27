@@ -110,9 +110,9 @@ class Scaffold(FlowComponent):
     any other actions in this set.
     """
     action_set = []
+
+    is_action = False
     
-
-
 
 class DefaultActionForm(Form):
     """
@@ -135,6 +135,7 @@ class Action(FlowComponent, FormView):
     """
     form_class = DefaultActionForm
     
+    is_action = True
     
     
 #    @property
