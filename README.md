@@ -9,7 +9,7 @@ For all defaults, see ``flows.config``.
 
 - ``FLOWS_STATE_STORE``
 
-    Default: 'flows.statestore.django_store'
+    Default: ``flows.statestore.django_store``
 
     Flows keep state between requests using a persistant storage mechanism. This 
     mechanism is configurable by changing the ``FLOWS_STATE_STORE`` setting. The
