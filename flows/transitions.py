@@ -1,5 +1,6 @@
 from django.core.exceptions import ImproperlyConfigured
 from django.http import HttpResponseRedirect
+import random
 
 
 
@@ -13,6 +14,7 @@ class NonAutomatic(object):
     """
     def choose_next(self, action):
         raise ImproperlyConfigured('The NonAutomatic transition should not be called - this implies an Action incorrectly returned COMPLETE rather than an explicit destination')
+
 
 
 class Linear(object):
@@ -81,4 +83,23 @@ class Linear(object):
         
         # otherwise move on to the next item in the list
         return self._get_first_action(action_set[idx+1])
+    
+    
+
+class Chaos(object):
+    """
+    Don't use this transition.
+    """
+    def _build_list(self, action):
+        actions = []
+        for a in action.scaffold.action_set:
+            if a.is_action:
+                actions.append(a)
+            else:
+                actions += self._build_list(a)
+        return actions
+    
+    def choose_next(self, action):
+        all_actions = self._build_list(action)
+        return random.choice(all_actions)
     
