@@ -6,4 +6,4 @@ DATABASES = {
         }
 }
 
-INSTALLED_APPS = ['flows']
+INSTALLED_APPS = ['flows', 'flows.statestore.tests']
