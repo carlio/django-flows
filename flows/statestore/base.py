@@ -1,5 +1,8 @@
 
 
+class StateNotFound(Exception):
+    pass
+
 class StateStoreBase(object):
     
     def get_state(self, task_id):
