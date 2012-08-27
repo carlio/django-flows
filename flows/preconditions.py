@@ -17,7 +17,7 @@ class RequiredState(object):
         state = component.state
         for varname in self.required_state:
             if varname not in state:
-                return HttpResponse('Incorrect state', status=424)
+                return HttpResponse('State is missing', status=422)
     
     def __str__(self):
         return 'RequiredState: %s' % (''.join(self.required_state))

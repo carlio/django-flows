@@ -2,6 +2,22 @@ django-flows
 ============
 
 
+Concepts
+========
+
+Flows, Actions and Scaffolds
+----------------------------
+
+State
+-----
+
+Preconditions
+-------------
+
+Transitions
+-----------
+
+
 Settings
 ========
 
