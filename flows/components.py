@@ -25,6 +25,12 @@ class LazyActionSet(list):
     def __getitem__(self, *args, **kwargs):
         return self._get_child_class(list.__getitem__(self, *args, **kwargs))
     
+    def index(self, obj):
+        for idx, elem in enumerate(self):
+            if obj is elem:
+                return idx
+        raise ValueError('%s not in list' % obj)
+    
     def __iter__(self):
         iterat = super(LazyActionSet, self).__iter__()
         for class_or_string in iterat:
@@ -45,14 +51,34 @@ class FlowComponentMeta(type):
         FlowComponentMeta.registry[inst.__name__] = inst
         
         if hasattr(inst, 'action_set'):
-            inst.children = LazyActionSet(inst.action_set)
-
+            inst.action_set = LazyActionSet(inst.action_set)
+            
         return inst
 
 
 
+class FlowComponent(object):
+    
+    """
+    The metaclass is used to register all possible parts of a flow so
+    that they can be looked up by name and added to URL patterns
+    """
+    __metaclass__ = FlowComponentMeta
+    
+    
+    """
+    Preconditions is a list of conditions which must be satisfied before
+    the flow is run. They will be executed in the order they are listed
+    in this attribute. See the `flows.preconditions` module for built-in
+    options and instructions on custom preconditions.
+    """
+    preconditions = []
+    
+    
 
-class Scaffold(object):
+
+
+class Scaffold(FlowComponent):
     """
     Flows are essentially a tree structure; a `Scaffold` is a node
     in this tree with children. The children can either be further
@@ -65,12 +91,6 @@ class Scaffold(object):
     to process a single piece of user interaction, a `Scaffold` is
     designed to pull several actions together into one set of functionality.
     """
-    
-    """
-    The metaclass is used to register all possible parts of a flow so
-    that they can be looked up by name and added to URL patterns
-    """
-    __metaclass__ = FlowComponentMeta
     
     """
     The transition controls what happens when an `Action` on the
@@ -104,12 +124,7 @@ class DefaultActionForm(Form):
 
 
 
-class Action(FormView):
-    """
-    The metaclass is used to register all possible parts of a flow so
-    that they can be looked up by name and added to URL patterns
-    """
-    __metaclass__ = FlowComponentMeta
+class Action(FlowComponent, FormView):
 
     """
     The `form_class` attribute controls which form object is used in
