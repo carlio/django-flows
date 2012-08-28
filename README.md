@@ -73,4 +73,7 @@ For all defaults, see ``flows.config``.
     kept without any interaction from the user. This value is in seconds, and defaults to 20 minutes.
     
  
+- ``FLOWS_TASK_ID_PARAM``
 
+    The ID of the current flow is kept in the URL to differentiate between different flows
+    occurring concurrently for the same user in the same browser. The default value is ``_id``.
