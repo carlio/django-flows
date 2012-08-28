@@ -19,3 +19,6 @@ class StateStoreBase(object):
     
     def put_state(self, task_id):
         raise NotImplementedError
+    
+    def delete_state(self, task_id):
+        raise NotImplementedError

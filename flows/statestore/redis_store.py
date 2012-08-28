@@ -33,3 +33,6 @@ class StateStore(StateStoreBase):
         ttl = config.FLOWS_TASK_IDLE_TIMEOUT
         data = self._serialise(state)
         self._get_db().setex(task_id, data, ttl)
+
+    def delete_state(self, task_id):
+        self._get_db().delete(task_id)

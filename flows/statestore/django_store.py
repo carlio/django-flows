@@ -28,3 +28,6 @@ class StateStore(StateStoreBase):
         state_model, _ = StateModel.objects.get_or_create(task_id=task_id)
         state_model.state = self._serialise(state)
         state_model.save()
+        
+    def delete_state(self, task_id):
+        StateModel.objects.filter(task_id=task_id).delete()
