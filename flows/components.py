@@ -12,18 +12,11 @@ COMPLETE = 'complete'
 
 
 
+
 class LazyActionSet(list):
     
-    def _get_child_class(self, class_or_string):
-        if isinstance( class_or_string, basestring ):
-            reg = FlowComponentMeta.registry
-            if class_or_string not in reg:
-                raise ImproperlyConfigured("No such flow component: '%s'" % class_or_string)
-            return reg[class_or_string]
-        return class_or_string
-    
     def __getitem__(self, *args, **kwargs):
-        return self._get_child_class(list.__getitem__(self, *args, **kwargs))
+        return get_by_class_or_name(list.__getitem__(self, *args, **kwargs))
     
     def index(self, obj):
         for idx, elem in enumerate(self):
@@ -34,9 +27,8 @@ class LazyActionSet(list):
     def __iter__(self):
         iterat = super(LazyActionSet, self).__iter__()
         for class_or_string in iterat:
-            yield self._get_child_class(class_or_string)
-                                        
-                                        
+            yield get_by_class_or_name(class_or_string)
+
 
 class FlowComponentMeta(type):
     registry = {}
@@ -137,6 +129,27 @@ class Action(FlowComponent, FormView):
     
     is_action = True
     
+    def form_valid(self, form):
+        """
+        This is called if the form was submitted via a POST request
+        and if all of its validation is complete. The user at this
+        point has filled in the form successfully, or simply clicked
+        'next' if there is no form. 
+        
+        An `Action` should process the form data in this method, for
+        example by creating database models, then return an indication
+        of which action to go to next.
+        
+        If using a `transition`, then the `Action` can simply return
+        `COMPLETE` to allow the transition to be handled automatically.
+        
+        Otherwise it should return another `Action` class, or a string
+        which will be interpreted as the name of an `Action`, or an
+        `HttpResponse`.
+        """
+        return COMPLETE
+    
+
     
 #    @property
 #    def id_field(self):
@@ -146,3 +159,42 @@ class Action(FlowComponent, FormView):
 #        field = "<input type='hidden' name='%s' value='%s'/>" % (FlowComponent.TASK_ID_PARAM, self.task_id)
 #        return mark_safe(field)
     
+    
+    
+    
+
+
+# Internal utility methods and classes
+
+def get_by_class_or_name(class_or_string):
+    if isinstance( class_or_string, basestring ):
+        reg = FlowComponentMeta.registry
+        if class_or_string not in reg:
+            raise ImproperlyConfigured("No such flow component: '%s'" % class_or_string)
+        return reg[class_or_string]
+    return class_or_string
+    
+    
+_flow_ids = {}
+    
+def name_for_flow(flow):
+    
+    if isinstance(flow, FlowComponent):
+        # this is an instance, get the class
+        F = flow.__class__
+    else:
+        F = flow
+    
+    key = F.__module__ + '.' + F.__name__
+    if key in _flow_ids:
+        name = _flow_ids[key]
+    else:
+        name = str(len(_flow_ids))
+        _flow_ids[key] = name
+    return name
+
+
+def url_name_for_hierarchy(hierarchy):
+    return 'flow_%s' % '/'.join([name_for_flow(h) for h in hierarchy])
+                                        
+
