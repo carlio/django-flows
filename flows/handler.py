@@ -119,6 +119,7 @@ class FlowPositionInstance(object):
             flow_component = flow_component_class()
             flow_component._flow_position_instance = self
             flow_component.state = state
+            flow_component.task_id = self.task_id
             
             self._flow_components.append( flow_component )
             
@@ -182,9 +183,11 @@ class FlowPositionInstance(object):
             if FC in fci.action_set:
                 # we found the relevant action set, which means we know the root
                 # part of the tree, and now we can construct the rest
+                idx = self._flow_components.index(fci)
                 break
+        else:
+            raise ValueError('Could not figure out how to redirect to %s' % FC)
         
-        idx = self._flow_components.index(fci)
         
         # so the new tree is from the root to the parent of the one we just found,
         # coupled with the initial subtree from the component we're tring to redirect
@@ -291,11 +294,6 @@ class PossibleFlowPosition(object):
             
     def create_instance(self, state):
         return FlowPositionInstance(self, state)
-    
-    def position_for_new_subtree(self, action_sublist):
-        components = self.flow_component_classes[:-1] + action_sublist
-        new_url_name = self._url_name_from_components(components)
-        return PossibleFlowPosition.all_positions[new_url_name]
     
     def _url_name_from_components(self, components):
         return 'flow_%s' % '/'.join([name_for_flow(fc) for fc in components])

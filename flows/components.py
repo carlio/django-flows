@@ -115,7 +115,7 @@ class FlowComponent(object):
         """
         return [], {}
     
-    def send_to(self, class_or_name, new_flow=False, with_errors=None):
+    def send_to(self, class_or_name, with_errors=None):
         """
         An action can only 'send_to' a sibling - that is, it can only send
         the user to another action or scaffold which is part of its parent
@@ -257,33 +257,6 @@ class Action(FlowComponent, FormView):
         `HttpResponse`.
         """
         return COMPLETE
-            
-#        if with_errors is not None:
-#            self.state['_with_errors'] = with_errors
-        
-#        if not hasattr(self, 'FC') or (FC not in self.children and FC.__name__ not in self.children):
-#            # we can't create a child if we are not a flow with children, so
-#            # delegate to our parent, if we have one
-#            if self.parent is not None:
-#                return self.parent.send_to(Segment, new_flow=new_flow)
-#            
-#        if new_flow:
-#            segment = Segment(self.handler, self.state).get_initial_flow()
-#        else:
-#            segment = self._construct(Segment, parent=self)
-#        return segment.get_initial_flow()
-    
-
-    
-#    @property
-#    def id_field(self):
-#        """
-#        
-#        """
-#        field = "<input type='hidden' name='%s' value='%s'/>" % (FlowComponent.TASK_ID_PARAM, self.task_id)
-#        return mark_safe(field)
-    
-    
     
     
 
