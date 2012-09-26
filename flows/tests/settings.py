@@ -9,9 +9,11 @@ DATABASES = {
 
 INSTALLED_APPS = ['flows', 'flows.statestore.tests']
 
-try:
-    import south
-except ImportError:
-    pass
-else:
-    INSTALLED_APPS += ['south']
+_optional = ['django_jenkins', 'south']
+for app in _optional:
+    try:
+        __import__(app)
+    except ImportError:
+        pass
+    else:
+        INSTALLED_APPS.append(app)
