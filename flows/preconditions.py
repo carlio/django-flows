@@ -13,7 +13,7 @@ class RequiredState(object):
     def __init__(self, *args):
         self.required_state = args
     
-    def process(self, component):
+    def process(self, request, component):
         state = component.state
         for varname in self.required_state:
             if varname not in state:

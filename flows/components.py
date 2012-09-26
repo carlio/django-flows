@@ -66,6 +66,26 @@ class FlowComponent(object):
     """
     preconditions = []
     
+    """
+    Some flow components should not be revisited when going 'backwards'
+    in the flow - for example, `Action`s which change global state rather
+    than just the flow state, such as a login or registration action,
+    should not be shown to the user again once clicking 'back'. 
+    """
+    skip_on_back = False
+    
+    
+    def check_preconditions(self, request):
+        """
+        Ensures that all of the preconditions for this flow
+        component are satisfied. It will return the result of
+        the first failing precondition, where order is defined
+        by their position in the `preconditions` list.
+        """
+        for prec in getattr(self, 'preconditions', []):
+            ret = prec.process(request, self)
+            if ret is not None:
+                return ret
     
 
 
@@ -104,6 +124,32 @@ class Scaffold(FlowComponent):
     action_set = []
 
     is_action = False
+        
+    def get_next(self):
+        if self.child is None:
+            return FlowComponent.COMPLETE
+        
+        if hasattr(self, 'children'):
+            for i, Child in enumerate(self.children):
+                if isinstance(self.child, Child):
+                    if i+1 < len(self.children):
+                        next_component = self._construct(self.children[i+1], parent=self).get_initial_flow()
+                        self.child = next_component
+                        return next_component
+                    else:
+                        return FlowComponent.COMPLETE
+                  
+        return FlowComponent.COMPLETE
+
+
+    def handle(self, request, *args, **kwargs):
+        # the default behaviour is simply to delegate, then find the next guy in our children
+        response = self.child.handle(request, *args, **kwargs)
+        
+        if response == FlowComponent.COMPLETE:
+            return self.get_next()
+        
+        return response
     
 
 class DefaultActionForm(Form):
@@ -149,6 +195,9 @@ class Action(FlowComponent, FormView):
         """
         return COMPLETE
     
+    def handle(self, request, *args, **kwargs):
+        return self.dispatch(request, *args, **kwargs)
+    
 
     
 #    @property
@@ -192,9 +241,5 @@ def name_for_flow(flow):
         name = str(len(_flow_ids))
         _flow_ids[key] = name
     return name
-
-
-def url_name_for_hierarchy(hierarchy):
-    return 'flow_%s' % '/'.join([name_for_flow(h) for h in hierarchy])
                                         
 

@@ -1,3 +1,4 @@
+#@PydevCodeAnalysisIgnore
 
 DATABASES = {
         'default': {
@@ -7,3 +8,10 @@ DATABASES = {
 }
 
 INSTALLED_APPS = ['flows', 'flows.statestore.tests']
+
+try:
+    import south
+except ImportError:
+    pass
+else:
+    INSTALLED_APPS += ['south']
