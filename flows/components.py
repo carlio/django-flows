@@ -115,6 +115,18 @@ class FlowComponent(object):
         """
         return [], {}
     
+    def send_to(self, class_or_name, new_flow=False, with_errors=None):
+        """
+        An action can only 'send_to' a sibling - that is, it can only send
+        the user to another action or scaffold which is part of its parent
+        scaffold.
+        """
+        url = self.link_to(class_or_name)
+        return redirect(url)
+    
+    def link_to(self, class_or_name, additional_url_params=None):
+        return self._flow_position_instance.position_instance_for(class_or_name).get_absolute_url()
+    
 
 
 
@@ -177,13 +189,17 @@ class Scaffold(FlowComponent):
         
         transition = self._get_transition()
         if transition is None:
-            # we have no idea what to do as there's no instructions
-            raise ImproperlyConfigured('An Action returned COMPLETE without having a transition on its parent Scaffold, so no destination can be determined')
+            # we have no idea what to do as there's no instructions,
+            # so return COMPLETE to delegate up the stack
+            return COMPLETE
         
         # otherwise the 'lower' scaffold or action is complete
         # and doesn't have any explicit instructions for what to
         # do next. if we can, work out what to do
-        return self._get_transition().get_next(self)
+        next_class = self._get_transition().choose_next(self)
+        if next_class is not COMPLETE:
+            return self.send_to(next_class)
+        return COMPLETE
         
         
 
@@ -212,6 +228,12 @@ class Action(FlowComponent, FormView):
     
     is_action = True
     
+    def get_context_data(self, **kwargs):
+        ctx = FormView.get_context_data(self, **kwargs)
+        ctx.update(self.state)
+        ctx['flows_back_url'] = self._flow_position_instance.get_back_url()
+        return ctx
+    
     @classmethod    
     def get_initial_action_tree(cls):
         return [cls]
@@ -235,15 +257,6 @@ class Action(FlowComponent, FormView):
         `HttpResponse`.
         """
         return COMPLETE
-    
-    def send_to(self, class_or_name, new_flow=False, with_errors=None):
-        """
-        An action can only 'send_to' a sibling - that is, it can only send
-        the user to another action or scaffold which is part of its parent
-        scaffold.
-        """
-        url = self.link_to(class_or_name)
-        return redirect(url)
             
 #        if with_errors is not None:
 #            self.state['_with_errors'] = with_errors
@@ -259,9 +272,6 @@ class Action(FlowComponent, FormView):
 #        else:
 #            segment = self._construct(Segment, parent=self)
 #        return segment.get_initial_flow()
-    
-    def link_to(self, class_or_name, additional_url_params=None):
-        return self._flow_position_instance.position_instance_for(class_or_name).get_absolute_url()
     
 
     

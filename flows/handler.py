@@ -11,6 +11,7 @@ from flows.statestore import state_store
 from flows.statestore.base import StateNotFound
 import re
 import uuid
+import inspect
 
 
 
@@ -67,9 +68,9 @@ class FlowHandler(object):
         urlpatterns = []
         
         if flow_position is None:
-            flow_position = PossibleFlowPosition(flow_component)
+            flow_position = PossibleFlowPosition([flow_component])
         else:
-            flow_position = PossibleFlowPosition(flow_component, append_to=flow_position)
+            flow_position = PossibleFlowPosition(flow_position.flow_component_classes + [flow_component])
         
         if hasattr(flow_component, 'urls'):
             flow_urls = flow_component.urls
@@ -165,10 +166,30 @@ class FlowPositionInstance(object):
         # figure out where we're being sent to
         FC = get_by_class_or_name(component_class_or_name)
         
-        # we can only send to a sibling of the current action!
-        parent_action_set = self._flow_components[-2].action_set
-        if FC not in parent_action_set:
-            raise ValueError('Cannot send to %s from %s' % (FC, self.get_action())) 
+        # it should be a sibling of one of the current items
+        # for example, if we are in position [A,B,E]:
+        #
+        #         A
+        #      /  |  \
+        #    B    C   D
+        #   /  \      |  \
+        #  E   F      G   H
+        # 
+        #  E can send to F (its own sibling) or C (sibling of its parent)
+
+        fci = None
+        for fci in self._flow_components[-2::-1]: # go backwards but skip the last element (the action)
+            if FC in fci.action_set:
+                # we found the relevant action set, which means we know the root
+                # part of the tree, and now we can construct the rest
+                break
+        
+        idx = self._flow_components.index(fci)
+        
+        # so the new tree is from the root to the parent of the one we just found,
+        # coupled with the initial subtree from the component we're tring to redirect
+        # to
+        tree_root = self._position.flow_component_classes[:idx+1]
         
         # figure out the action tree for the new first component - either
         # we have been given an action, in which case it's just one single
@@ -178,12 +199,10 @@ class FlowPositionInstance(object):
         
         # we use our current tree and replace the current leaf with this new 
         # subtree to get the new position
-        new_position = self._position.position_for_new_subtree(new_subtree)
+        new_position = PossibleFlowPosition(tree_root + new_subtree)
         
         # now create an instance of the position with the current state
         return new_position.create_instance(self._state)
-        
-        
 
     
     def handle(self, request, *args, **kwargs):
@@ -222,7 +241,7 @@ class FlowPositionInstance(object):
             next_url = self._state.get('_on_complete', None)
             if next_url is None:
                 # oh, we don't know where to go...
-                raise ImproperlyConfigured('Flow completed without an _on_complete URL or an explicit redirect')
+                raise ImproperlyConfigured('Flow completed without an _on_complete URL or an explicit redirect - %s' % self.__repr__())
             else:
                 response = redirect(next_url)
 
@@ -233,7 +252,12 @@ class FlowPositionInstance(object):
             # update the state if necessary
             state_store.put_state(self.task_id, self._state)
             
-            if isinstance(response, Action):
+            if inspect.isclass(response):
+                # we got given a class, which implies the code should redirect
+                # to this new (presumably Action) class
+                response = redirect(self.position_instance_for(response).get_absolute_url()) 
+            
+            elif isinstance(response, Action):
                 # this is a new action for the user, so redirect to it
                 url = response.get_absolute_url()
                 response = redirect(url)
@@ -245,6 +269,9 @@ class FlowPositionInstance(object):
                 response = redirect(flow_component.get_absolute_url()) 
 
         return response
+    
+    def __repr__(self):
+        return 'Instance of %s' % self._position.__repr__()
         
     
 class PossibleFlowPosition(object):
@@ -257,11 +284,8 @@ class PossibleFlowPosition(object):
     avaiable flows. This class represents one such possibility.
     """
 
-    def __init__(self, flow_component, append_to=None):
-        if append_to is not None:
-            self.flow_component_classes = append_to.flow_component_classes + [flow_component]
-        else:
-            self.flow_component_classes = [flow_component]
+    def __init__(self, flow_components):
+        self.flow_component_classes = flow_components
             
         PossibleFlowPosition.all_positions[self.url_name] = self
             
@@ -279,5 +303,8 @@ class PossibleFlowPosition(object):
     @property
     def url_name(self):
         return self._url_name_from_components(self.flow_component_classes)
+    
+    def __repr__(self):
+        return ' / '.join( map(str, self.flow_component_classes) )
     
     

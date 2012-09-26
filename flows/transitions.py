@@ -29,7 +29,7 @@ class Linear(object):
             raise ValueError
         
         # now work out which of our children is in the active path
-        if idx+1 > len(position.flow_component_classes):
+        if idx+1 >= len(position.flow_component_classes):
             # this means that we are trying to choose the next item
             # from an action, which is impossible as they don't have
             # action sets!
