@@ -1,7 +1,8 @@
 from django.views.generic.edit import FormView
 from django.forms.forms import Form
-from flows.transitions import NonAutomatic
 from django.core.exceptions import ImproperlyConfigured
+import inspect
+from django.shortcuts import redirect
 
 
 # The internal constant used to indicate that a flow has completed
@@ -87,6 +88,33 @@ class FlowComponent(object):
             if ret is not None:
                 return ret
     
+    def prepare(self, request, *args, **kwargs):
+        """
+        The `prepare` method is called before the request is handled
+        on each flow component in turn from root to leaf, to allow them
+        to preprocess things such as request arguments or to populate
+        state. 
+        """
+        pass
+    
+    def handle_response(self, response):
+        """
+        The `handle_response` method is called after the request has
+        been handled on each component in turn from leaf to root, to
+        allow them to override responses from further down the chain.
+        """
+        return response
+    
+    def get_url_args(self):
+        """
+        When constructing a URL, flow components may need to provide some
+        of the arguments, for example if they consumed and are responsible
+        for some of the arguments dealt with in `prepare`
+        
+        This method should return a pair of (args, kwargs) 
+        """
+        return [], {}
+    
 
 
 
@@ -111,7 +139,7 @@ class Scaffold(FlowComponent):
     
     See also the `flows.transitions` module for possible values.
     """
-    transition = NonAutomatic
+    transition = None
     
     """
     The `action_set` is the set of possible `Action`s which can be
@@ -124,32 +152,41 @@ class Scaffold(FlowComponent):
     action_set = []
 
     is_action = False
+    
+    def _get_transition(self):
+        transition = self.transition
+        if transition is None:
+            return None
         
-    def get_next(self):
-        if self.child is None:
-            return FlowComponent.COMPLETE
-        
-        if hasattr(self, 'children'):
-            for i, Child in enumerate(self.children):
-                if isinstance(self.child, Child):
-                    if i+1 < len(self.children):
-                        next_component = self._construct(self.children[i+1], parent=self).get_initial_flow()
-                        self.child = next_component
-                        return next_component
-                    else:
-                        return FlowComponent.COMPLETE
-                  
-        return FlowComponent.COMPLETE
+        if inspect.isclass(transition):
+            transition = transition()
+            
+        return transition
+    
 
+    @classmethod    
+    def get_initial_action_tree(cls):
+        first_item = cls.action_set[0]
+        return [cls] + first_item.get_initial_action_tree()
+        
 
-    def handle(self, request, *args, **kwargs):
-        # the default behaviour is simply to delegate, then find the next guy in our children
-        response = self.child.handle(request, *args, **kwargs)
+    def handle_response(self, response):
+        if response != COMPLETE:
+            # it was already dealt with, just pass it on
+            return response
         
-        if response == FlowComponent.COMPLETE:
-            return self.get_next()
+        transition = self._get_transition()
+        if transition is None:
+            # we have no idea what to do as there's no instructions
+            raise ImproperlyConfigured('An Action returned COMPLETE without having a transition on its parent Scaffold, so no destination can be determined')
         
-        return response
+        # otherwise the 'lower' scaffold or action is complete
+        # and doesn't have any explicit instructions for what to
+        # do next. if we can, work out what to do
+        return self._get_transition().get_next(self)
+        
+        
+
     
 
 class DefaultActionForm(Form):
@@ -175,6 +212,10 @@ class Action(FlowComponent, FormView):
     
     is_action = True
     
+    @classmethod    
+    def get_initial_action_tree(cls):
+        return [cls]
+    
     def form_valid(self, form):
         """
         This is called if the form was submitted via a POST request
@@ -195,8 +236,32 @@ class Action(FlowComponent, FormView):
         """
         return COMPLETE
     
-    def handle(self, request, *args, **kwargs):
-        return self.dispatch(request, *args, **kwargs)
+    def send_to(self, class_or_name, new_flow=False, with_errors=None):
+        """
+        An action can only 'send_to' a sibling - that is, it can only send
+        the user to another action or scaffold which is part of its parent
+        scaffold.
+        """
+        url = self.link_to(class_or_name)
+        return redirect(url)
+            
+#        if with_errors is not None:
+#            self.state['_with_errors'] = with_errors
+        
+#        if not hasattr(self, 'FC') or (FC not in self.children and FC.__name__ not in self.children):
+#            # we can't create a child if we are not a flow with children, so
+#            # delegate to our parent, if we have one
+#            if self.parent is not None:
+#                return self.parent.send_to(Segment, new_flow=new_flow)
+#            
+#        if new_flow:
+#            segment = Segment(self.handler, self.state).get_initial_flow()
+#        else:
+#            segment = self._construct(Segment, parent=self)
+#        return segment.get_initial_flow()
+    
+    def link_to(self, class_or_name, additional_url_params=None):
+        return self._flow_position_instance.position_instance_for(class_or_name).get_absolute_url()
     
 
     

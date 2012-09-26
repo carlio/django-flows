@@ -1,14 +1,16 @@
+from django.conf.urls import patterns, url, include
+from django.core.exceptions import ImproperlyConfigured
+from django.core.urlresolvers import reverse
+from django.http import HttpResponseRedirect
+from django.shortcuts import redirect
+from flows import config
+from flows.components import Scaffold, Action, name_for_flow, COMPLETE, \
+    get_by_class_or_name
+from flows.history import FlowHistory
 from flows.statestore import state_store
 from flows.statestore.base import StateNotFound
-from flows.components import FlowComponent, Scaffold, Action, name_for_flow
-from flows import config
-from django.conf.urls import patterns, url, include
 import re
-from django.http import Http404, HttpResponseRedirect
-from django.shortcuts import redirect
-from flows.history import FlowHistory
 import uuid
-from django.core.exceptions import ImproperlyConfigured
 
 
 
@@ -54,47 +56,8 @@ class FlowHandler(object):
             # create the instances required to handle the request 
             flow_instance = position.create_instance(state)
                 
-            root_flow = flow_instance.get_root_flow()
-            flow_instance.setup(request, *args, **kwargs)
-
-            if request.method == 'POST' and '_go_back' in request.POST:
-                response = redirect(flow_instance.get_back_url())
-
-            else:
-                response = root_flow.handle(request, *args, **kwargs)
-                if isinstance(response, FlowComponent):
-                    # this is a flow, so redirect to it
-                    url = response.get_absolute_url()
-                    response = redirect(url)
-
-            if response == COMPLETE:
-                # we are done! we should have an 'on complete' value in 
-                # the state to send the user to next
-                next_url = state.get('_on_complete', None)
-                if next_url is None:
-                    # oh, we don't... well, never mind
-                    # TODO we could error here, or we could just display a nice message
-                    pass
-                else:
-                    response = redirect(next_url)
-
-                # if we are done, then we should remove the task state
-                state_store.delete(task_id)
-
-                return response
-
-            # if this is a GET request, then we displayed something to the user, so
-            # we should record this in the history, unless the request returned a 
-            # redirect, in which case we haven't displayed anything
-            if request.method == 'GET' and not isinstance(response, HttpResponseRedirect):
-                history.add_to_history(state)
-
-            state_store.put_state(task_id, state)
-
-            for flow in flows:
-                flow.process_response(response)
-
-            return response
+            # deal with the request
+            return flow_instance.handle(request, *args, **kwargs)
 
         return handle_view
 
@@ -104,9 +67,9 @@ class FlowHandler(object):
         urlpatterns = []
         
         if flow_position is None:
-            flow_position = FlowPosition(flow_component)
+            flow_position = PossibleFlowPosition(flow_component)
         else:
-            flow_position = FlowPosition(flow_component, append_to=flow_position)
+            flow_position = PossibleFlowPosition(flow_component, append_to=flow_position)
         
         if hasattr(flow_component, 'urls'):
             flow_urls = flow_component.urls
@@ -142,12 +105,13 @@ class FlowHandler(object):
 
 class FlowPositionInstance(object):
     """
-    A FlowInstance represents a concrete instance of a PossibleFlowPosition - 
+    A FlowPositionInstance represents a concrete instance of a PossibleFlowPosition - 
     that is, a user is currently performing an action as part of a flow
     """
     
     def __init__(self, position, state):
         self._position = position
+        self._state = state
         self._flow_components = []
         
         for flow_component_class in self._position.flow_component_classes:
@@ -157,7 +121,7 @@ class FlowPositionInstance(object):
             
             self._flow_components.append( flow_component )
             
-        self._history = FlowHistory(state, position, self)    
+        self._history = FlowHistory(self)    
             
         self._validate()
         
@@ -165,6 +129,10 @@ class FlowPositionInstance(object):
         pass
         # TODO: assert that only the last element is an Action and that the
         # rest are Scaffolds
+        
+    @property
+    def task_id(self):
+        return self._state['_id']
             
     def get_root_component(self):
         return self._flow_components[0]
@@ -175,17 +143,113 @@ class FlowPositionInstance(object):
     def get_back_url(self):
         return self._history.get_back_url()
     
-    def setup(self, request, *args, **kwargs):
+    def get_absolute_url(self):
+        args=[]
+        kwargs={}
+        for flow_component in self._flow_components:
+            flow_args, flow_kwargs = flow_component.get_url_args()
+            args += flow_args
+            kwargs.update(flow_kwargs)
+            
+        url_name = self._position.url_name
+        url = reverse(url_name, args=args, kwargs=kwargs)
+        
+        separator = '&' if '?' in url else '?'
+        
+        return '%(url)s%(separator)s%(task_id_param_name)s=%(task_id)s' % { 
+                                 'url': url, 'separator': separator,
+                                 'task_id_param_name': config.FLOWS_TASK_ID_PARAM,
+                                 'task_id': self.task_id  }
+
+    def position_instance_for(self, component_class_or_name):
+        # figure out where we're being sent to
+        FC = get_by_class_or_name(component_class_or_name)
+        
+        # we can only send to a sibling of the current action!
+        parent_action_set = self._flow_components[-2].action_set
+        if FC not in parent_action_set:
+            raise ValueError('Cannot send to %s from %s' % (FC, self.get_action())) 
+        
+        # figure out the action tree for the new first component - either
+        # we have been given an action, in which case it's just one single
+        # item, or we have been given a scaffold, in which case there could
+        # be a list of [scaffold, scaffold..., action]
+        new_subtree = FC.get_initial_action_tree()
+        
+        # we use our current tree and replace the current leaf with this new 
+        # subtree to get the new position
+        new_position = self._position.position_for_new_subtree(new_subtree)
+        
+        # now create an instance of the position with the current state
+        return new_position.create_instance(self._state)
+        
+        
+
+    
+    def handle(self, request, *args, **kwargs):
         # first validate that we can actually run by checking for
         # required state, for example
         for flow_component in self._flow_components:
-            flow_component.check_preconditions(request, *args, **kwargs)
+            flow_component.check_preconditions(request)
             
         # now call each of the prepare methods for the components
+        response = None
         for flow_component in self._flow_components:
-            flow_component.prepare(request, *args, **kwargs)
+            response = flow_component.prepare(request, *args, **kwargs)
+            if response is not None:
+                # we allow prepare methods to give out responses if they
+                # want to, eg, redirect
+                break
+                
+        if response is None:
+            # now that everything is set up, we can handle the request
+            response = self.get_action().dispatch(request, *args, **kwargs)
+            
+            # if this is a GET request, then we displayed something to the user, so
+            # we should record this in the history, unless the request returned a 
+            # redirect, in which case we haven't displayed anything
+            if request.method == 'GET' and not isinstance(response, HttpResponseRedirect):
+                self._history.add_to_history(self)
+        
+        # now we have a response, we need to decide what to do with it
+        for flow_component in self._flow_components[::-1]: # go from leaf to root, ie, backwards
+            response = flow_component.handle_response(response)
+            
+        # now we have some kind of response, figure out what it is exactly
+        if response == COMPLETE:
+            # this means that the entire flow finished - we should redirect
+            # to the on_complete url if we have one, or get upset if we don't
+            next_url = self._state.get('_on_complete', None)
+            if next_url is None:
+                # oh, we don't know where to go...
+                raise ImproperlyConfigured('Flow completed without an _on_complete URL or an explicit redirect')
+            else:
+                response = redirect(next_url)
+
+            # if we are done, then we should remove the task state
+            state_store.delete(self.task_id)
+            
+        else:
+            # update the state if necessary
+            state_store.put_state(self.task_id, self._state)
+            
+            if isinstance(response, Action):
+                # this is a new action for the user, so redirect to it
+                url = response.get_absolute_url()
+                response = redirect(url)
+                
+            elif isinstance(response, basestring):
+                # this is a string which should be the name of an action
+                # which couldn't be referenced as a class for some reason
+                flow_component = get_by_class_or_name(response)
+                response = redirect(flow_component.get_absolute_url()) 
+
+        return response
+        
     
 class PossibleFlowPosition(object):
+    all_positions = {}
+    
     """
     A PossibleFlowPosition represents a possible position in a hierachy of 
     flow components. On startup, all FlowComponents (Scaffolds and Actions)
@@ -199,11 +263,21 @@ class PossibleFlowPosition(object):
         else:
             self.flow_component_classes = [flow_component]
             
-    def construct_instance(self, state):
-        return FlowPositionInstance(self, state)
+        PossibleFlowPosition.all_positions[self.url_name] = self
             
+    def create_instance(self, state):
+        return FlowPositionInstance(self, state)
+    
+    def position_for_new_subtree(self, action_sublist):
+        components = self.flow_component_classes[:-1] + action_sublist
+        new_url_name = self._url_name_from_components(components)
+        return PossibleFlowPosition.all_positions[new_url_name]
+    
+    def _url_name_from_components(self, components):
+        return 'flow_%s' % '/'.join([name_for_flow(fc) for fc in components])
+    
     @property
     def url_name(self):
-        return 'flow_%s' % '/'.join([name_for_flow(fc) for fc in self.flow_component_classes])
+        return self._url_name_from_components(self.flow_component_classes)
     
     
