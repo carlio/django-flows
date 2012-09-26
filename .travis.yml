@@ -1,0 +1,7 @@
+language: python
+python:
+  - "2.7"
+install:
+  - "pip install django-jenkins pylint coverage"
+  - "pip install --upgrade -e . --use-mirrors"
+script: "django-admin.py jenkins --settings=flows.tests.settings flows"
