@@ -1,3 +1,4 @@
+# -*- coding: UTF-8 -*-
 from example.flows import GetAuthenticatedUser
 from flows.handler import FlowHandler
 

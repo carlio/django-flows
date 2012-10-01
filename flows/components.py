@@ -1,3 +1,4 @@
+# -*- coding: UTF-8 -*-
 from django.views.generic.edit import FormView
 from django.forms.forms import Form
 from django.core.exceptions import ImproperlyConfigured

@@ -1,3 +1,4 @@
+# -*- coding: UTF-8 -*-
 from flows.components import Scaffold, Action
 from django import forms
 from django.http import HttpResponseForbidden
