@@ -87,4 +87,5 @@ For all defaults, see ``flows.config``.
     This setting is a method which will be called to get the value to bind the task to. It is called
     with a single argument, the current request. The default behaviour is to bind the task to the
     session ID.
+
     

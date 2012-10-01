@@ -180,7 +180,8 @@ class FlowPositionInstance(object):
         
         separator = '&' if '?' in url else '?'
         
-        return '%(url)s%(separator)s%(task_id_param_name)s=%(task_id)s' % { 
+        return '%(root)s%(url)s%(separator)s%(task_id_param_name)s=%(task_id)s' % { 
+                                 'root': config.FLOWS_SITE_ROOT,
                                  'url': url, 'separator': separator,
                                  'task_id_param_name': config.FLOWS_TASK_ID_PARAM,
                                  'task_id': self.task_id  }
