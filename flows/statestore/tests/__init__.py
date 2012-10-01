@@ -1,2 +1,2 @@
 
-from .django_tests import *
+from flows.statestore.tests.django_tests import *

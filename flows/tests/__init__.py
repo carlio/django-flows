@@ -1,6 +1,6 @@
 
-from .preconditions_tests import *
-from .components_tests import *
-from .transitions_tests import *
+from flows.tests.preconditions_tests import *
+from flows.tests.components_tests import *
+from flows.tests.transitions_tests import *
 
-from ..statestore.tests import * 
+from flows.statestore.tests import * 
