@@ -12,7 +12,6 @@ class StateStore(StateStoreBase):
     
     def _get_settings(self):
         host = config.FLOWS_REDIS_STATE_STORE_HOST
-        user = config.FLOWS_REDIS_STATE_STORE_USER
         password = config.FLOWS_REDIS_STATE_STORE_PASSWORD
         port = config.FLOWS_REDIS_STATE_STORE_PORT
         db_id = config.FLOWS_REDIS_STATE_STORE_DB
