@@ -54,10 +54,6 @@ For all defaults, see ``flows.config``.
         
             The port to connect to on the redis server. Defaults to ``6379``
             
-        - ``FLOWS_REDIS_STATE_STORE_USER``
-        
-            The user to use when connecting to the redis server. Defaults to empty.
-            
         - ``FLOWS_REDIS_STATE_STORE_PASSWORD``
         
             The password to use when connecting to the redis server. Defaults to empty.
