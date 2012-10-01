@@ -11,7 +11,6 @@ FLOWS_STATE_STORE = _get_setting('FLOWS_STATE_STORE', 'flows.statestore.django_s
 FLOWS_TASK_IDLE_TIMEOUT = _get_setting('FLOWS_TASK_IDLE_TIMEOUT', 20 * 60) # 20 minutes
 FLOWS_TASK_ID_PARAM = _get_setting('FLOWS_TASK_ID_PARAM', '_id')
 FLOWS_SITE_ROOT = _get_setting('FLOWS_SITE_ROOT', '')
-print FLOWS_SITE_ROOT
 
 # Redis state store settings
 FLOWS_REDIS_STATE_STORE_HOST = _get_setting( 'FLOWS_REDIS_STATE_STORE_HOST', 'localhost' )
