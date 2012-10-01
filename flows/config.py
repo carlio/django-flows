@@ -20,4 +20,4 @@ FLOWS_REDIS_STATE_STORE_DB = _get_setting( 'FLOWS_REDIS_STATE_STORE_DB', 0 )
 
 
 # Task ID binder
-FLOWS_TASK_BINDER = _get_setting( 'FLOWS_TASK_BINDER', None ) 
+FLOWS_TASK_BINDER = _get_setting( 'FLOWS_TASK_BINDER', 'flows.binder.session_binder' ) 

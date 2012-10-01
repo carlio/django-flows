@@ -1,10 +1,18 @@
 # -*- coding: UTF-8 -*-
 from django.utils.importlib import import_module
+from flows import config
 
-def _setup(full_class):
-    idx = full_class.rindex('.')
-    module_name, class_name = full_class[:idx], full_class[idx+1:]
+
+def session_binder(request):
+    return request.session.session_key
+
+
+def _setup():
+    binder_path = config.FLOWS_TASK_BINDER
+    module_name, attr_name = binder_path.rsplit('.', 1)
+    
     mod = import_module(module_name)
-    clz = getattr(mod, class_name)
-    return clz()
+    return getattr(mod, attr_name)
 
+
+binder = _setup()

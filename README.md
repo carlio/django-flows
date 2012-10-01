@@ -78,9 +78,13 @@ For all defaults, see ``flows.config``.
     The ID of the current flow is kept in the URL to differentiate between different flows
     occurring concurrently for the same user in the same browser. The default value is ``_t``.
     
-- ``FLOWS_TIE_TO_COOKIE``
+- ``FLOWS_TASK_BINDER``
 
     Task IDs are appended to every URL. This URL can easily be shared. To prevent a user giving out
-    their task state simply by sharing a URL, a task ID is tied to the value of a cookie so that
-    only the user who started a task can continue executing it. This setting is the name of the
-    cookie whose value should be used. The default is ``session``. 
+    their task state simply by sharing a URL, a task ID is bound to a value specific to the current
+    user so that only the user who started a task can continue executing it. 
+    
+    This setting is a method which will be called to get the value to bind the task to. It is called
+    with a single argument, the current request. The default behaviour is to bind the task to the
+    session ID.
+    

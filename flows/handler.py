@@ -1,5 +1,4 @@
 # -*- coding: UTF-8 -*-
-from django.conf import settings
 from django.conf.urls import patterns, url, include
 from django.core.exceptions import ImproperlyConfigured
 from django.core.urlresolvers import reverse
@@ -15,6 +14,7 @@ import inspect
 import logging
 import re
 import uuid
+from flows.binder import binder
 
 
 
@@ -60,22 +60,20 @@ class FlowHandler(object):
                     logging.debug("Could not find task with ID %s" % task_id)
                     raise Http404
                 
-                tied_to = state.get('_tied_to', None)
-                tied_to_cookie_name = getattr(settings, 'FLOWS_TIE_TO_COOKIE', 'session')
-                cookie_value = request.COOKIES.get(tied_to_cookie_name, None)
-                if cookie_value is None or tied_to is None or cookie_value != tied_to:
-                    logging.debug('Will not give task %s as it is tied to %s, not %s' % (task_id, tied_to, cookie_value))
+                bound_to = state.get('_bound_to', None)
+                bind_to = binder(request)
+                
+                if bound_to is None or bind_to is None or bind_to != bound_to:
+                    logging.debug('Will not give task %s as it is bound to %s, not %s' % (task_id, bound_to, bind_to))
                     raise Http404
                 
             else:
                 task_id = re.sub('-', '', str(uuid.uuid4()))
+                bind_to = binder(request)
+                if bind_to is None:
+                    raise ImproperlyConfigured('A value is required to bind the task to')
                 
-                tied_to_cookie_name = getattr(settings, 'FLOWS_TIE_TO_COOKIE', 'session')
-                tied_to = request.COOKIES.get(tied_to_cookie_name, None)
-                if tied_to is None:
-                    raise ImproperlyConfigured('Cookie %s was not found' % tied_to_cookie_name)
-                
-                state = {'_id': task_id, '_tied_to': tied_to}
+                state = {'_id': task_id, '_bound_to': bind_to}
                 state_store.put_state(task_id, state)
 
             # create the instances required to handle the request 
