@@ -265,17 +265,20 @@ class FlowPositionInstance(object):
     def handle(self, request, *args, **kwargs):
         # first validate that we can actually run by checking for
         # required state, for example
-        for flow_component in self._flow_components:
-            flow_component.check_preconditions(request)
-            
-        # now call each of the prepare methods for the components
         response = None
         for flow_component in self._flow_components:
-            response = flow_component.prepare(request, *args, **kwargs)
+            response = flow_component.check_preconditions(request)
             if response is not None:
-                # we allow prepare methods to give out responses if they
-                # want to, eg, redirect
                 break
+        
+        if response is None:
+            # now call each of the prepare methods for the components
+            for flow_component in self._flow_components:
+                response = flow_component.prepare(request, *args, **kwargs)
+                if response is not None:
+                    # we allow prepare methods to give out responses if they
+                    # want to, eg, redirect
+                    break
                 
         if response is None:
             # now that everything is set up, we can handle the request

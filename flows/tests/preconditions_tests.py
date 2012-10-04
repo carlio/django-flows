@@ -17,7 +17,6 @@ class RequiredStateTest(unittest.TestCase):
         self.assertTrue(check.process(request, flow) is None) 
         
     def test_missing_state(self):
-        
         check = RequiredState('thing', 'blah')
         
         flow = MockFlow()
@@ -29,4 +28,3 @@ class RequiredStateTest(unittest.TestCase):
         # ensure that we do something with the request rather than
         # just let it pass through
         self.assertTrue( isinstance(response, HttpResponse) )
-        

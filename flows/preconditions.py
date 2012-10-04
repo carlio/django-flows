@@ -33,5 +33,5 @@ class EnsureAuthenticated(object):
         if not request.user.is_authenticated():
             if self.error_url is not None:
                 return redirect(self.error_url)
-            return HttpResponse(status_code=401)
+            return HttpResponse(status=401)
         
