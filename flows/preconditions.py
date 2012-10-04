@@ -1,6 +1,6 @@
 # -*- coding: UTF-8 -*-
 from django.http import HttpResponse
-
+from django.shortcuts import redirect
 
 
 class RequiredState(object):
@@ -20,5 +20,18 @@ class RequiredState(object):
             if varname not in state:
                 return HttpResponse('State is missing', status=422)
     
-    def __str__(self):
+    def __repr__(self):
         return 'RequiredState: %s' % (''.join(self.required_state))
+    
+    
+class EnsureAuthenticated(object):
+    
+    def __init__(self, error_url=None):
+        self.error_url = error_url
+
+    def process(self, request, component):
+        if not request.user.is_authenticated():
+            if self.error_url is not None:
+                return redirect(self.error_url)
+            return HttpResponse(status_code=401)
+        
