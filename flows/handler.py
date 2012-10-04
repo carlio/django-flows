@@ -2,7 +2,8 @@
 from django.conf.urls import patterns, url, include
 from django.core.exceptions import ImproperlyConfigured
 from django.core.urlresolvers import reverse
-from django.http import HttpResponseRedirect, Http404, HttpResponse
+from django.http import HttpResponseRedirect, Http404, HttpResponse,\
+    HttpResponseForbidden
 from django.shortcuts import redirect
 from django.conf import settings
 from flows import config
@@ -75,13 +76,7 @@ class FlowHandler(object):
                     raise Http404
                 
             else:
-                task_id = re.sub('-', '', str(uuid.uuid4()))
-                bind_to = binder(request)
-                if bind_to is None:
-                    raise ImproperlyConfigured('A value is required to bind the task to')
-                
-                state = {'_id': task_id, '_bound_to': bind_to}
-                state_store.put_state(task_id, state)
+                state = self._new_state(request)
 
             # create the instances required to handle the request 
             flow_instance = position.create_instance(state)
@@ -90,14 +85,26 @@ class FlowHandler(object):
             return flow_instance.handle(request, *args, **kwargs)
 
         return handle_view
-
+    
+    def _new_state(self, request, **initial_state):
+        task_id = re.sub('-', '', str(uuid.uuid4()))
+        bind_to = binder(request)
+        if bind_to is None:
+            raise ImproperlyConfigured('A value is required to bind the task to')
+        
+        state = {'_id': task_id, '_bound_to': bind_to}
+        state.update( initial_state )
+        state_store.put_state(task_id, state)
+        
+        return state
     
     def _urls_for_flow(self, flow_component, flow_position=None):
 
         urlpatterns = []
         
         if flow_position is None:
-            flow_position = PossibleFlowPosition([flow_component])
+            entry_point = flow_component in self._entry_points
+            flow_position = PossibleFlowPosition([flow_component], entry_point)
         else:
             flow_position = PossibleFlowPosition(flow_position.flow_component_classes + [flow_component])
         
@@ -145,7 +152,16 @@ class FlowHandler(object):
             self._add_flow_nodes(graph, flow)
             
         data = graph.create_png()
+        
         return HttpResponse(data, content_type='image/png')
+        
+    def flow_entry_link(self, request, flow_class_or_name, on_complete_url):
+        flow_class = get_by_class_or_name(flow_class_or_name)
+        
+        position = PossibleFlowPosition(flow_class.get_initial_action_tree())
+        state = self._new_state(request, _on_complete=on_complete_url)
+        instance = position.create_instance(state)
+        return instance.get_absolute_url()
         
     @property
     def urls(self):
@@ -336,6 +352,7 @@ class FlowPositionInstance(object):
     
 class PossibleFlowPosition(object):
     all_positions = {}
+    entry_positions = {}
     
     """
     A PossibleFlowPosition represents a possible position in a hierachy of 
@@ -344,8 +361,11 @@ class PossibleFlowPosition(object):
     avaiable flows. This class represents one such possibility.
     """
 
-    def __init__(self, flow_components):
+    def __init__(self, flow_components, entry_point=False):
         self.flow_component_classes = flow_components
+        self.entry_point = entry_point
+        if entry_point:
+            PossibleFlowPosition.entry_positions[flow_components[0]] = self
             
         PossibleFlowPosition.all_positions[self.url_name] = self
             
@@ -360,6 +380,9 @@ class PossibleFlowPosition(object):
         return self._url_name_from_components(self.flow_component_classes)
     
     def __repr__(self):
-        return ' / '.join( map(str, self.flow_component_classes) )
+        path = ' / '.join( map(str, self.flow_component_classes) )
+        if self.entry_point:
+            return '%s (entry point)' % path
+        return path
     
     
