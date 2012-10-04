@@ -2,8 +2,9 @@
 from django.conf.urls import patterns, url, include
 from django.core.exceptions import ImproperlyConfigured
 from django.core.urlresolvers import reverse
-from django.http import HttpResponseRedirect, Http404
+from django.http import HttpResponseRedirect, Http404, HttpResponse
 from django.shortcuts import redirect
+from django.conf import settings
 from flows import config
 from flows.components import Scaffold, Action, name_for_flow, COMPLETE, \
     get_by_class_or_name
@@ -17,6 +18,12 @@ import uuid
 from flows.binder import binder
 
 
+try:
+    import pydot
+    has_pydot = True
+except ImportError:
+    has_pydot = False
+    
 
 
 
@@ -118,11 +125,35 @@ class FlowHandler(object):
     def register_entry_point(self, flow_component):
         self._entry_points.append( flow_component )
         
+    def _add_flow_nodes(self, graph, component, root=None, depth=0):
+        
+        name = '%s - %s' % (depth, component.__name__)
+        graph.add_node(pydot.Node(name))
+        if root:
+            graph.add_edge(pydot.Edge(root, name))
+            
+        for fc in getattr(component, 'action_set', []):
+            self._add_flow_nodes(graph, fc, root=name, depth=depth+1)
+        
+    def flow_graph(self, request):
+        if not has_pydot:
+            raise ImproperlyConfigured('The pydot library is required to see flowgraph debug output')
+        
+        graph = pydot.Dot(graph_type='graph')
+        
+        for flow in self._entry_points:
+            self._add_flow_nodes(graph, flow)
+            
+        data = graph.create_png()
+        return HttpResponse(data, content_type='image/png')
+        
     @property
     def urls(self):
         urlpatterns = []
         for flow in self._entry_points:
             urlpatterns += self._urls_for_flow(flow)
+        if settings.DEBUG:
+            urlpatterns += patterns('', url('.flowgraph$', self.flow_graph))
         return urlpatterns
 
 
