@@ -16,6 +16,8 @@ import logging
 import re
 import uuid
 from flows.binder import binder
+import urlparse
+import urllib
 
 
 try:
@@ -68,7 +70,10 @@ class FlowHandler(object):
                 # otherwise we're trying to enter the middle of a flow, which
                 # is not allowed
                 if position.is_entry_point():
-                    state = self._new_state(request)
+                    initial = {}
+                    if '_on_complete' in request.GET:
+                        initial['_on_complete'] = request.GET['_on_complete']
+                    state = self._new_state(request, **initial)
                 else:
                     raise Http404
 
@@ -156,13 +161,26 @@ class FlowHandler(object):
         
         return HttpResponse(data, content_type='image/png')
         
-    def flow_entry_link(self, request, flow_class_or_name, on_complete_url):
+    def flow_entry_link(self, request, flow_class_or_name, on_complete_url, with_state=False):
         flow_class = get_by_class_or_name(flow_class_or_name)
         
         position = PossibleFlowPosition(flow_class.get_initial_action_tree())
-        state = self._new_state(request, _on_complete=on_complete_url)
+        if with_state:
+            state = self._new_state(request, _on_complete=on_complete_url)
+        else:
+            state = {'_id': ''} # TODO: this is a bit of a hack, but task_id is required...
         instance = position.create_instance(state)
-        return instance.get_absolute_url(include_flow_id=False)
+        
+        url = instance.get_absolute_url(include_flow_id=False)
+        
+        parts = urlparse.urlparse(url)
+        query = urlparse.parse_qs(parts.query)
+        query['_on_complete'] = on_complete_url
+        parts = list(parts)
+        parts[4] = urllib.urlencode(query)
+        
+        return urlparse.urlunparse(parts)        
+        
         
     def list_urls(self, urllist, prefix=''):
         urls = []
@@ -398,8 +416,6 @@ class PossibleFlowPosition(object):
     def is_entry_point(self):
         root_tree = self.flow_component_classes[0].get_initial_action_tree()
         my_tree = self.flow_component_classes
-        print root_tree, my_tree
-        print root_tree == my_tree
         return root_tree == my_tree
     
     @property
