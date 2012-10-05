@@ -177,7 +177,6 @@ class FlowHandler(object):
     @property
     def urls(self):
         urlpatterns = []
-        print self._entry_points
         for flow in self._entry_points:
             urlpatterns += self._urls_for_flow(flow)
         if settings.DEBUG:
@@ -186,9 +185,10 @@ class FlowHandler(object):
         # verify that URLs are unique            
         url_list = self.list_urls(urlpatterns)
         url_set = set()
+
         for url_entry in url_list:
             if url_entry in url_set:
-                raise ImproperlyConfigured('Url is not complete: %s' % url_entry)
+                raise ImproperlyConfigured('Url is not unique: %s' % url_entry)
             url_set.add(url_entry)
             
         return urlpatterns
