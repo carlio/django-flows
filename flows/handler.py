@@ -2,8 +2,7 @@
 from django.conf.urls import patterns, url, include
 from django.core.exceptions import ImproperlyConfigured
 from django.core.urlresolvers import reverse
-from django.http import HttpResponseRedirect, Http404, HttpResponse,\
-    HttpResponseForbidden
+from django.http import HttpResponseRedirect, Http404, HttpResponse
 from django.shortcuts import redirect
 from django.conf import settings
 from flows import config
@@ -33,25 +32,14 @@ class FlowHandler(object):
     def __init__(self):
         self._entry_points = []
     
-    def _get_state(self, task_id, create=False):
+    def _get_state(self, task_id):
         
         if not re.match('^[0-9a-f]{32}$', task_id):
             # someone is messing with the task ID - don't even try
             # to do anything with it
             raise StateNotFound
         
-        try:
-            return state_store.get_state(task_id)
-        except StateNotFound:
-            if not create:
-                raise
-            
-        # create a task and some state
-        task_id = re.sub('-', '', str(uuid.uuid4()))
-        state = {'_id': task_id }
-        state_store.put_state(task_id, state)
-        
-        return state
+        return state_store.get_state(task_id)
 
     
     def _view(self, position):
@@ -76,7 +64,13 @@ class FlowHandler(object):
                     raise Http404
                 
             else:
-                state = self._new_state(request)
+                # are we at an entry point? if so, then create some new state
+                # otherwise we're trying to enter the middle of a flow, which
+                # is not allowed
+                if position.is_entry_point():
+                    state = self._new_state(request)
+                else:
+                    raise Http404
 
             # create the instances required to handle the request 
             flow_instance = position.create_instance(state)
@@ -101,10 +95,9 @@ class FlowHandler(object):
     def _urls_for_flow(self, flow_component, flow_position=None):
 
         urlpatterns = []
-        
+                
         if flow_position is None:
-            entry_point = flow_component in self._entry_points
-            flow_position = PossibleFlowPosition([flow_component], entry_point)
+            flow_position = PossibleFlowPosition([flow_component])
         else:
             flow_position = PossibleFlowPosition(flow_position.flow_component_classes + [flow_component])
         
@@ -112,7 +105,7 @@ class FlowHandler(object):
             flow_urls = flow_component.urls
         else:
             flow_urls = [flow_component.url]
-
+            
         if issubclass(flow_component, Scaffold) and hasattr(flow_component, 'action_set'):
             for child in flow_component.action_set:
                 for u in flow_urls:
@@ -135,6 +128,14 @@ class FlowHandler(object):
     def _add_flow_nodes(self, graph, component, root=None, depth=0):
         
         name = '%s - %s' % (depth, component.__name__)
+        if hasattr(component, 'url'):
+            urls = [component.url]
+        elif hasattr(component, 'urls'):
+            urls = component.urls
+            
+        urls = ['<empty>' if u is '' else u for u in urls]
+        name = "%s\n%s" % (name, '\n'.join(urls))
+            
         graph.add_node(pydot.Node(name))
         if root:
             graph.add_edge(pydot.Edge(root, name))
@@ -161,15 +162,35 @@ class FlowHandler(object):
         position = PossibleFlowPosition(flow_class.get_initial_action_tree())
         state = self._new_state(request, _on_complete=on_complete_url)
         instance = position.create_instance(state)
-        return instance.get_absolute_url()
+        return instance.get_absolute_url(include_flow_id=False)
+        
+    def list_urls(self, urllist, prefix=''):
+        urls = []
+        for entry in urllist:
+            if hasattr(entry, 'url_patterns'):
+                # this has further sub-patterns
+                urls += self.list_urls(entry.url_patterns, prefix+entry.regex.pattern)
+            else:
+                urls.append(prefix + entry.regex.pattern)
+        return urls 
         
     @property
     def urls(self):
         urlpatterns = []
+        print self._entry_points
         for flow in self._entry_points:
             urlpatterns += self._urls_for_flow(flow)
         if settings.DEBUG:
             urlpatterns += patterns('', url('.flowgraph$', self.flow_graph))
+            
+        # verify that URLs are unique            
+        url_list = self.list_urls(urlpatterns)
+        url_set = set()
+        for url_entry in url_list:
+            if url_entry in url_set:
+                raise ImproperlyConfigured('Url is not complete: %s' % url_entry)
+            url_set.add(url_entry)
+            
         return urlpatterns
 
 
@@ -214,7 +235,7 @@ class FlowPositionInstance(object):
     def get_back_url(self):
         return self._history.get_back_url()
     
-    def get_absolute_url(self):
+    def get_absolute_url(self, include_flow_id=True):
         args=[]
         kwargs={}
         for flow_component in self._flow_components:
@@ -225,13 +246,17 @@ class FlowPositionInstance(object):
         url_name = self._position.url_name
         url = reverse(url_name, args=args, kwargs=kwargs)
         
-        separator = '&' if '?' in url else '?'
+        if include_flow_id:
         
-        return '%(root)s%(url)s%(separator)s%(task_id_param_name)s=%(task_id)s' % { 
-                                 'root': config.FLOWS_SITE_ROOT,
-                                 'url': url, 'separator': separator,
-                                 'task_id_param_name': config.FLOWS_TASK_ID_PARAM,
-                                 'task_id': self.task_id  }
+            separator = '&' if '?' in url else '?'
+            
+            return '%(root)s%(url)s%(separator)s%(task_id_param_name)s=%(task_id)s' % { 
+                                     'root': config.FLOWS_SITE_ROOT,
+                                     'url': url, 'separator': separator,
+                                     'task_id_param_name': config.FLOWS_TASK_ID_PARAM,
+                                     'task_id': self.task_id  }
+        else:
+            return '%(root)s%(url)s' % { 'root': config.FLOWS_SITE_ROOT, 'url': url }
 
     def position_instance_for(self, component_class_or_name):
         # figure out where we're being sent to
@@ -352,7 +377,6 @@ class FlowPositionInstance(object):
     
 class PossibleFlowPosition(object):
     all_positions = {}
-    entry_positions = {}
     
     """
     A PossibleFlowPosition represents a possible position in a hierachy of 
@@ -361,12 +385,8 @@ class PossibleFlowPosition(object):
     avaiable flows. This class represents one such possibility.
     """
 
-    def __init__(self, flow_components, entry_point=False):
+    def __init__(self, flow_components):
         self.flow_component_classes = flow_components
-        self.entry_point = entry_point
-        if entry_point:
-            PossibleFlowPosition.entry_positions[flow_components[0]] = self
-            
         PossibleFlowPosition.all_positions[self.url_name] = self
             
     def create_instance(self, state):
@@ -375,14 +395,18 @@ class PossibleFlowPosition(object):
     def _url_name_from_components(self, components):
         return 'flow_%s' % '/'.join([name_for_flow(fc) for fc in components])
     
+    def is_entry_point(self):
+        root_tree = self.flow_component_classes[0].get_initial_action_tree()
+        my_tree = self.flow_component_classes
+        print root_tree, my_tree
+        print root_tree == my_tree
+        return root_tree == my_tree
+    
     @property
     def url_name(self):
         return self._url_name_from_components(self.flow_component_classes)
     
     def __repr__(self):
-        path = ' / '.join( map(str, self.flow_component_classes) )
-        if self.entry_point:
-            return '%s (entry point)' % path
-        return path
+        return ' / '.join( map(str, self.flow_component_classes) )
     
     
