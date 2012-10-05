@@ -2,8 +2,11 @@
 from django.views.generic.edit import FormView
 from django.forms.forms import Form
 from django.core.exceptions import ImproperlyConfigured
+from django import forms
 import inspect
+from flows import config
 from django.shortcuts import redirect
+from django.utils.safestring import mark_safe
 
 
 # The internal constant used to indicate that a flow has completed
@@ -204,6 +207,31 @@ class Scaffold(FlowComponent):
         
         
 
+
+class FlowRenderer(object):
+    """
+    Small helper class to render various useful parts
+    of forms or field to enable flows to function.
+    """
+    def __init__(self, flow_component):
+        self.flow_component = flow_component
+    
+    # TODO: might be nice to make this into a block tag, something
+    # like:
+    # 
+    #   {% flow %}content content{% endflow %}
+    
+    def render_form_header(self):
+        action = self.form_action()
+        html = "<form method='POST' action='%s'>%s" % (action, self.flow_support())
+        return mark_safe(html)
+    
+    def form_action(self): 
+        return self.flow_component.get_absolute_url()
+
+    def flow_support(self):
+        field = "<input type='hidden' name='%s' value='%s'/>" % (config.FLOWS_TASK_ID_PARAM, self.flow_component.task_id)
+        return mark_safe(field)
     
 
 class DefaultActionForm(Form):
@@ -233,11 +261,25 @@ class Action(FlowComponent, FormView):
         ctx = FormView.get_context_data(self, **kwargs)
         ctx.update(self.state)
         ctx['flows_back_url'] = self._flow_position_instance.get_back_url()
+        ctx['flow'] = FlowRenderer(self)
         return ctx
+    
+    def get_absolute_url(self):
+        return self._flow_position_instance.get_absolute_url()
     
     @classmethod    
     def get_initial_action_tree(cls):
         return [cls]
+    
+    def get_form(self, form_class):
+        form = FormView.get_form(self, form_class)
+        form.fields[config.FLOWS_TASK_ID_PARAM] = forms.CharField(widget=forms.HiddenInput, initial=self.task_id)
+        if '_with_errors' in self.state:
+            errors = self.state.pop('_with_errors')
+            form.full_clean()
+            for field_name, error_message in errors.iteritems():
+                form._errors[field_name] = form.error_class(error_message)
+        return form
     
     def form_valid(self, form):
         """
