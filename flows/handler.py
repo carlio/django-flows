@@ -365,7 +365,7 @@ class FlowPositionInstance(object):
                 response = redirect(next_url)
 
             # if we are done, then we should remove the task state
-            state_store.delete(self.task_id)
+            state_store.delete_state(self.task_id)
             
         else:
             # update the state if necessary
