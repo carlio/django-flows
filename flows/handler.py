@@ -33,6 +33,7 @@ class FlowHandler(object):
     
     def __init__(self):
         self._entry_points = []
+        
     
     def _get_state(self, task_id):
         
@@ -44,8 +45,8 @@ class FlowHandler(object):
         return state_store.get_state(task_id)
 
     
-    def _view(self, position):
-
+    def _view(self, namespace, position):
+        
         def handle_view(request, *args, **kwargs):
             # first get the state for this task, or create state if
             # this is an entry point with no state
@@ -76,9 +77,9 @@ class FlowHandler(object):
                     state = self._new_state(request, **initial)
                 else:
                     raise Http404
-
+                
             # create the instances required to handle the request 
-            flow_instance = position.create_instance(state)
+            flow_instance = position.create_instance(namespace, state)
                 
             # deal with the request
             return flow_instance.handle(request, *args, **kwargs)
@@ -97,7 +98,7 @@ class FlowHandler(object):
         
         return state
     
-    def _urls_for_flow(self, flow_component, flow_position=None):
+    def _urls_for_flow(self, namespace, flow_component, flow_position=None):
 
         urlpatterns = []
                 
@@ -114,12 +115,12 @@ class FlowHandler(object):
         if issubclass(flow_component, Scaffold) and hasattr(flow_component, 'action_set'):
             for child in flow_component.action_set:
                 for u in flow_urls:
-                    urlpatterns += patterns('', url(u, include(self._urls_for_flow(child, flow_position))))
+                    urlpatterns += patterns('', url(u, include(self._urls_for_flow(namespace, child, flow_position))))
 
         elif issubclass(flow_component, Action):
             name = flow_position.url_name
             for u in flow_urls:
-                urlpatterns += patterns('', url(u, self._view(flow_position), name=name))
+                urlpatterns += patterns('', url(u, self._view(namespace, flow_position), name=name))
 
         else:
             raise TypeError(str(flow_component))
@@ -161,7 +162,7 @@ class FlowHandler(object):
         
         return HttpResponse(data, content_type='image/png')
         
-    def flow_entry_link(self, request, flow_class_or_name, on_complete_url, with_state=False):
+    def flow_entry_link(self, request, flow_class_or_name, on_complete_url, with_state=False, namespace=None):
         flow_class = get_by_class_or_name(flow_class_or_name)
         
         position = PossibleFlowPosition(flow_class.get_initial_action_tree())
@@ -169,7 +170,7 @@ class FlowHandler(object):
             state = self._new_state(request, _on_complete=on_complete_url)
         else:
             state = {'_id': ''} # TODO: this is a bit of a hack, but task_id is required...
-        instance = position.create_instance(state)
+        instance = position.create_instance(namespace, state)
         
         url = instance.get_absolute_url(include_flow_id=False)
         
@@ -192,11 +193,17 @@ class FlowHandler(object):
                 urls.append(prefix + entry.regex.pattern)
         return urls 
         
+    def get_urls(self, namespace=None):
+        return self._get_url_patterns(namespace), namespace, namespace
+        
     @property
     def urls(self):
+        return self.get_urls(None)
+    
+    def _get_url_patterns(self, namespace):
         urlpatterns = []
         for flow in self._entry_points:
-            urlpatterns += self._urls_for_flow(flow)
+            urlpatterns += self._urls_for_flow(namespace, flow)
         if settings.DEBUG:
             urlpatterns += patterns('', url('.flowgraph$', self.flow_graph))
             
@@ -208,7 +215,7 @@ class FlowHandler(object):
             if url_entry in url_set:
                 raise ImproperlyConfigured('Url is not unique: %s' % url_entry)
             url_set.add(url_entry)
-            
+        
         return urlpatterns
 
 
@@ -218,7 +225,8 @@ class FlowPositionInstance(object):
     that is, a user is currently performing an action as part of a flow
     """
     
-    def __init__(self, position, state):
+    def __init__(self, namespace, position, state):
+        self._namespace = namespace
         self._position = position
         self._state = state
         self._flow_components = []
@@ -228,6 +236,7 @@ class FlowPositionInstance(object):
             flow_component._flow_position_instance = self
             flow_component.state = state
             flow_component.task_id = self.task_id
+            flow_component.namespace = self._namespace
             
             self._flow_components.append( flow_component )
             
@@ -262,6 +271,8 @@ class FlowPositionInstance(object):
             kwargs.update(flow_kwargs)
             
         url_name = self._position.url_name
+        if self._namespace is not None:
+            url_name = '%s:%s' % (self._namespace, url_name)
         url = reverse(url_name, args=args, kwargs=kwargs)
         
         if include_flow_id:
@@ -318,7 +329,7 @@ class FlowPositionInstance(object):
         new_position = PossibleFlowPosition(tree_root + new_subtree)
         
         # now create an instance of the position with the current state
-        return new_position.create_instance(self._state)
+        return new_position.create_instance(self._namespace, self._state)
 
     
     def handle(self, request, *args, **kwargs):
@@ -407,8 +418,8 @@ class PossibleFlowPosition(object):
         self.flow_component_classes = flow_components
         PossibleFlowPosition.all_positions[self.url_name] = self
             
-    def create_instance(self, state):
-        return FlowPositionInstance(self, state)
+    def create_instance(self, namespace, state):
+        return FlowPositionInstance(namespace, self, state)
     
     def _url_name_from_components(self, components):
         return 'flow_%s' % '/'.join([name_for_flow(fc) for fc in components])
