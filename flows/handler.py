@@ -20,6 +20,8 @@ import urlparse
 import urllib
 
 
+logger = logging.getLogger(__name__)
+
 try:
     import pydot
     has_pydot = True
@@ -57,14 +59,14 @@ class FlowHandler(object):
                 try:
                     state = self._get_state(task_id)
                 except StateNotFound:
-                    logging.debug("Could not find task with ID %s" % task_id)
+                    logger.debug("Could not find task with ID %s" % task_id)
                     raise Http404
                 
                 bound_to = state.get('_bound_to', None)
                 bind_to = binder(request)
                 
                 if bound_to is None or bind_to is None or bind_to != bound_to:
-                    logging.debug('Will not give task %s as it is bound to %s, not %s' % (task_id, bound_to, bind_to))
+                    logger.debug('Will not give task %s as it is bound to %s, not %s' % (task_id, bound_to, bind_to))
                     raise Http404
                 
             else:
@@ -73,10 +75,11 @@ class FlowHandler(object):
                 # is not allowed
                 if position.is_entry_point():
                     initial = {}
-                    if '_on_complete' in request.GET:
-                        initial['_on_complete'] = request.GET['_on_complete']
+                    if '_on_complete' in request.REQUEST:
+                        initial['_on_complete'] = request.REQUEST['_on_complete']
                     state = self._new_state(request, **initial)
                 else:
+                    logger.debug('Flow position is not an entry point: %s' % position)
                     raise Http404
                 
             # create the instances required to handle the request 
