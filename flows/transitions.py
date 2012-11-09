@@ -43,7 +43,7 @@ class Linear(object):
         # so, we know where we are in our action set, and we are linear,
         # so next is simply the next one in our action set, or COMPLETE
         # if there are no more options
-        if child_idx+1 > len(action_set):
+        if child_idx+1 >= len(action_set):
             return COMPLETE
     
         return action_set[child_idx+1]
