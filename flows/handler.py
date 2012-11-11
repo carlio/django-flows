@@ -163,12 +163,13 @@ class FlowHandler(object):
         
         return HttpResponse(data, content_type='image/png')
         
-    def flow_entry_link(self, request, flow_class_or_name, on_complete_url, with_state=False, flow_namespace=None):
+    def flow_entry_link(self, request, flow_class_or_name, on_complete_url=None, with_state=False, flow_namespace=None):
         flow_class = get_by_class_or_name(flow_class_or_name)
         
         position = PossibleFlowPosition(self.app_namespace, flow_namespace, flow_class.get_initial_action_tree())
         if with_state:
-            state = self._new_state(request, _on_complete=on_complete_url)
+            kwargs = {} if on_complete_url is None else {'_on_complete': on_complete_url}
+            state = self._new_state(request, **kwargs)
         else:
             state = {'_id': ''} # TODO: this is a bit of a hack, but task_id is required...
         instance = position.create_instance(state)
@@ -177,7 +178,8 @@ class FlowHandler(object):
         
         parts = urlparse.urlparse(url)
         query = urlparse.parse_qs(parts.query)
-        query['_on_complete'] = on_complete_url
+        if on_complete_url is not None:
+            query['_on_complete'] = on_complete_url
         parts = list(parts)
         parts[4] = urllib.urlencode(query)
         
