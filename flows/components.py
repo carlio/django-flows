@@ -273,7 +273,9 @@ class Action(FlowComponent, FormView):
     
     def get_form(self, form_class):
         form = FormView.get_form(self, form_class)
-        form.fields[config.FLOWS_TASK_ID_PARAM] = forms.CharField(widget=forms.HiddenInput, initial=self.task_id)
+        form.fields[config.FLOWS_TASK_ID_PARAM] = forms.CharField(widget=forms.HiddenInput, 
+                                                                  initial=self.task_id,
+                                                                  required=False)
         if '_with_errors' in self.state:
             errors = self.state.pop('_with_errors')
             form.full_clean()
