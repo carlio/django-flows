@@ -308,7 +308,6 @@ class FlowPositionInstance(object):
         # 
         #  E can send to F (its own sibling) or C (sibling of its parent)
 
-        fci = None
         for fci in self._flow_components[-2::-1]: # go backwards but skip the last element (the action)
             if FC in fci.action_set:
                 # we found the relevant action set, which means we know the root

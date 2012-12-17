@@ -5,7 +5,7 @@ import time
 
 
 _version = "0.1.%s.dev" % int(time.time())
-_packages = find_packages(exclude=["*.tests", "*.tests.*", "tests.*", "tests"])
+_packages = find_packages(exclude=["*.tests", "*.tests.*", "tests.*", "tests", "example"])
     
 # common dependencies
 _install_requires = [
@@ -17,8 +17,4 @@ setup( name='django-flows',
        version=_version,
        packages=_packages,
        install_requires=_install_requires,
-       scripts=[
-           # 'scripts/manage',
-       ],
-
 )
