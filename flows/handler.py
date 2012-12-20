@@ -9,7 +9,7 @@ from flows import config
 from flows.components import Scaffold, Action, name_for_flow, COMPLETE, \
     get_by_class_or_name
 from flows.history import FlowHistory
-from flows.statestore import state_store
+from flows.statestore import state_store as default_state_store
 from flows.statestore.base import StateNotFound
 import inspect
 import logging
@@ -33,9 +33,10 @@ except ImportError:
 
 class FlowHandler(object):
     
-    def __init__(self, app_namespace=None):
+    def __init__(self, app_namespace=None, state_store=None):
         self._entry_points = []
         self.app_namespace = app_namespace
+        self.state_store = state_store or default_state_store
         
     
     def _get_state(self, task_id):
@@ -45,7 +46,7 @@ class FlowHandler(object):
             # to do anything with it
             raise StateNotFound
         
-        return state_store.get_state(task_id)
+        return self.state_store.get_state(task_id)
 
     
     def _view(self, position):
@@ -83,7 +84,7 @@ class FlowHandler(object):
                     raise Http404
                 
             # create the instances required to handle the request 
-            flow_instance = position.create_instance(state)
+            flow_instance = position.create_instance(state, self.state_store)
                 
             # deal with the request
             return flow_instance.handle(request, *args, **kwargs)
@@ -98,7 +99,7 @@ class FlowHandler(object):
         
         state = {'_id': task_id, '_bound_to': bind_to}
         state.update( initial_state )
-        state_store.put_state(task_id, state)
+        self.state_store.put_state(task_id, state)
         
         return state
     
@@ -175,7 +176,7 @@ class FlowHandler(object):
             state = self._new_state(request, **kwargs)
         else:
             state = {'_id': ''} # TODO: this is a bit of a hack, but task_id is required...
-        instance = position.create_instance(state)
+        instance = position.create_instance(state, self.state_store)
         
         url = instance.get_absolute_url(include_flow_id=False)
         
@@ -231,12 +232,13 @@ class FlowPositionInstance(object):
     that is, a user is currently performing an action as part of a flow
     """
     
-    def __init__(self, app_namespace, flow_namespace, position, state):
+    def __init__(self, app_namespace, flow_namespace, position, state, state_store):
         self._app_namespace = app_namespace
         self._flow_namespace = flow_namespace
         self._position = position
         self._state = state
         self._flow_components = []
+        self.state_store = state_store
         
         for flow_component_class in self._position.flow_component_classes:
             flow_component = flow_component_class()
@@ -335,7 +337,7 @@ class FlowPositionInstance(object):
         new_position = PossibleFlowPosition(self._app_namespace, self._flow_namespace, tree_root + new_subtree)
         
         # now create an instance of the position with the current state
-        return new_position.create_instance(self._state)
+        return new_position.create_instance(self._state, self.state_store)
 
     
     def handle(self, request, *args, **kwargs):
@@ -382,11 +384,11 @@ class FlowPositionInstance(object):
                 response = redirect(next_url)
 
             # if we are done, then we should remove the task state
-            state_store.delete_state(self.task_id)
+            self.state_store.delete_state(self.task_id)
             
         else:
             # update the state if necessary
-            state_store.put_state(self.task_id, self._state)
+            self.state_store.put_state(self.task_id, self._state)
             
             if inspect.isclass(response):
                 # we got given a class, which implies the code should redirect
@@ -427,8 +429,8 @@ class PossibleFlowPosition(object):
 
         PossibleFlowPosition.all_positions[self.url_name] = self
             
-    def create_instance(self, state):
-        return FlowPositionInstance(self.app_namespace, self.flow_namespace, self, state)
+    def create_instance(self, state, state_store):
+        return FlowPositionInstance(self.app_namespace, self.flow_namespace, self, state, state_store)
     
     def _url_name_from_components(self, components, include_app_namespace=True):
         if self.flow_namespace is None:
