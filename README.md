@@ -1,21 +1,107 @@
 django-flows
 ============
 
+``django-flows`` can best be described as 'wizards on steroids'. Its purpose is to keep state and position in complicated flows of logic, allowing optional branches and complicated paths through a series of individual user actions.
+
+``django-flows`` makes it possible to specify subsections of functionality and group them together later. It recognises that, at the core, there are several user actions such as logging in, or entering a credit card number, and that the web application needs to group these actions in such a way that all state required to make a purchase, for example, is obtained. It also seeks to make these actions reusable, and to group related actions together into larger 'user flows'.
+
+Example
+=======
+
+The actual use case which caused this library to be written is the following: say you want to sell something to the user. This requires showing the user what they are buying, how much it costs etc. If the user chooses to purchase, then they have to be logged in. However if they have no account, they have to register. Or, perhaps they forgot their password. Either way, once that is done, then you need the user to choose a method of paying. Either they have already saved a credit card, for example, or they need to enter a new method of payment. This could take various forms - required credit card information is different to bank account information. Once that is collected, then a final confirmation step is required.
+
+The overall process is quite straightforward to explain:
+
+  * Do you want to buy this?
+  * Tell us who you are
+  * Tell us how you want to pay
+  * Confirm everything
+  
+However each of those steps have various substeps. The actual tree of possible interaction looks something like this:
+
+    +-- Do you want to buy this?
+    |
+    +-+ Tell us who you are
+    | |
+    | +-- Log in to existing account OR
+    | |
+    | +-- Create new account OR
+    | |
+    | +-+ I forgot my password
+    |   |
+    |   +-- Enter your email address
+    |   |
+    |   +-- Enter your confirmation code
+    |   |
+    |   +-- Reset your password
+    |
+    +-+ Choose how to pay
+    | |
+    | +-- Choose a payment method I already saved OR
+    | |
+    | +-+ Enter a new payment method
+    |   |
+    |   +-- Credit card number OR
+    |   |
+    |   +-+ Bank account details
+    |   | |
+    |   | + Account address
+    |   | 
+    |   +-- PayPal
+    |
+    +-- Confirm and pay
+    
+At each point, there are several options, each of which could branch into more options, which could have sub-options, and so on.
+
 
 Concepts
 ========
 
-Flows, Actions and Scaffolds
-----------------------------
+Flows
+---
+A 'flow' is considered to be a series of user actions required to perform some functionality.
 
-State
------
+Actions
+---
+
+At its heart, any flow is just a series of actions taken by the user. These can be as simple as clicking 'next' after reading something informational, to entering large amounts of details to register a new user account.
+
+In `django-flows`, an `Action` is basically identical to a Django `FormView` (and in fact, inherits from it). It will be shown to the user on a `GET` request, and the form will be processed on `POST`. If the form validates, then the `Action` is complete.
+
+When an action is complete, it can either explicitly send the user to another action, or it can simply return `COMPLETE` to allow the flows framework to figure out where to send the user next.
+
+Scaffolds
+---
+
+A flow is a set of actions, which can branch at various points. Scaffolds group actions into logical collections (eg, 'Get the user account' has possible actions of 'login' and 'register'). These scaffolds can then be used themselves inside other scaffolds, leading to the tree-like structure which gives `django-flows` its benefit over regular Django wizards.
+
+    class GetUserAccount(Scaffold):
+        action_set = [LoginOrRegister, Register, ForgotPassword]
+    
+In the example above, the `GetUserAccount` scaffold groups the actions which encapsulate all ways a user can become authenticated. `LoginOrRegister` is an action with a login form, with a link to register for users who don't have an account. `Register` is an action which  allows the user to register. `ForgotPassword` is itself a scaffold, which contains the actions required to reset the user's password if they have forgotten it.
+
+
+Tasks and State
+---
+
+The main difficulty with simply using standard views is keeping the state between them. When user intentions can branch or loop back on themselves, trying to use URL parameters or session data can become tedious or even impossible. Additionally, if a user has multiple tabs or browser windows open, then using sessions will cause their interactions between tabs to interfere with each other, leading to unpredictable results.
+
+`django-flows` has the concept of 'tasks'. This is basically an isolated set of state which allows multiple concurrent tasks to run. The specific task which the user is currently doing is kept using an `id` parameter, which is automatically added to URLs and forms generated.
+
+This identifier is used to retrieve state for the particular flow the user is currently working through.
 
 Preconditions
--------------
+---
+
+Preconditions are various requirements of the current flow state which are checked before the current action is executed. These include things like ensuring that a field is present in the state. For example, if an action requires a 'purchase item' to have been set by a previous action, then a `RequiredState` precondition to check its presence. Another example is `LoginRequired`, which ensures the `Action` will not be available to users who are not authenticated.
 
 Transitions
------------
+---
+A `Scaffold` is made up of a list of `Action`s which represent some larger functionality. These can sometimes be several steps in a long signup process, or can be several possible branches the user can choose. 
+
+An `Action` can either explicitly send the user, or, for maximum reusability, can simply return `COMPLETE` and let the parent `Scaffold` decide where to send the user next. The decision of where to go next is handled by the `Transition` object.
+
+The default behaviour is to expect the actions to handle their next destination themselves. However sometimes the steps are predictable - moving from step 1 to 2 to 3 - and in this case, using a `Linear` transition will cause the flow to move between `Action`s in the order specified in the `action_set` attribute of the `Scaffold`.
 
 
 Settings
