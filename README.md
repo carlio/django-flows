@@ -143,6 +143,10 @@ For all defaults, see ``flows.config``.
         - ``FLOWS_REDIS_STATE_STORE_PASSWORD``
         
             The password to use when connecting to the redis server. Defaults to empty.
+            
+    - ``flows.statestore.tmpfile_store``
+        
+        This stores state in temporary files on disk. It is not recommended for production use, because state timeout cannot be implemented, leading to stale task state. It can be useful in development however.
         
     You can also create your own method of state storage. Simply create a module with
     a class called ``StateStore`` which extends ``BaseStateStore`` in ``flows.statestore.base``
@@ -157,8 +161,7 @@ For all defaults, see ``flows.config``.
  
 - ``FLOWS_TASK_ID_PARAM``
 
-    The ID of the current flow is kept in the URL to differentiate between different flows
-    occurring concurrently for the same user in the same browser. The default value is ``_t``.
+    The ID of the current flow is kept in the URL as a parameter to differentiate between different flows occurring concurrently for the same user in the same browser. This setting changes the name of the parameter. The default value is ``_id``.
     
 - ``FLOWS_TASK_BINDER``
 
