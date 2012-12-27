@@ -1,6 +1,8 @@
 django-flows
 ============
 
+[![Build Status](https://secure.travis-ci.org/carlio/django-flows.png)](http://travis-ci.org/carlio/django-flows)
+
 ``django-flows`` can best be described as 'wizards on steroids'. Its purpose is to keep state and position in complicated flows of logic, allowing optional branches and complicated paths through a series of individual user actions.
 
 ``django-flows`` makes it possible to specify subsections of functionality and group them together later. It recognises that, at the core, there are several user actions such as logging in, or entering a credit card number, and that the web application needs to group these actions in such a way that all state required to make a purchase, for example, is obtained. It also seeks to make these actions reusable, and to group related actions together into larger 'user flows'.
