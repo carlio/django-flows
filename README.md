@@ -55,6 +55,8 @@ However each of those steps have various substeps. The actual tree of possible i
     
 At each point, there are several options, each of which could branch into more options, which could have sub-options, and so on.
 
+Each of these branches are subsets of functionality which standalone, too. Entering your credit card information is a piece of functionality, just as 'choose a payment method' is. `django-flows` seeks to decouple these pieces so that they are reusable, and enable these pieces to be interchanged, reordered and mixed together in flows at will. 
+
 
 Concepts
 ========
@@ -175,4 +177,9 @@ For all defaults, see ``flows.config``.
     with a single argument, the current request. The default behaviour is to bind the task to the
     session ID.
 
-    
+Misc
+===
+
+If `settings.DEBUG` is `True`, then the flow graph visualization is enabled. Under the root of a flow handler, use `.flowgraph` as the path to see a graph of the actions and paths between them in the flows. This requires that the PyDot library is installed.
+
+Eg: if a flow handler is installed under `/some/path/` then navigating to `/some/path/.flowgraph` will show the layout of the flows of that hander. 
