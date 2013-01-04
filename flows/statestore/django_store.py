@@ -3,15 +3,24 @@ from django.db import models
 from django.utils import timezone
 from flows import config
 from datetime import timedelta
+from django.db.models import Q
 
 
 
 class StateModelManager(models.Manager):
+    def get_query_set(self):
+        timeout = timezone.now() - timedelta(seconds=config.FLOWS_TASK_IDLE_TIMEOUT)
+        return super(StateModelManager, self).get_query_set().filter( last_access__gte=timeout )
 
     def remove_expired_state(self):
-        timeout =  config.FLOWS_TASK_IDLE_TIMEOUT
+        timeout = config.FLOWS_TASK_IDLE_TIMEOUT
         cutoff = timezone.now() - timedelta(seconds=timeout)
-        expired = self.filter(last_access__lte=cutoff)
+
+        # directly call the superclass's queryset method because
+        # in our own we filter out expired state!
+        qs = super(StateModelManager, self).get_query_set()
+
+        expired = qs.filter(last_access__lte=cutoff)
         count = expired.count()
         expired.delete()
         return count
