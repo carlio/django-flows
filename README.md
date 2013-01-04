@@ -180,6 +180,21 @@ For all defaults, see ``flows.config``.
 Misc
 ===
 
+Flow Graph Visualisation
+---
+
 If `settings.DEBUG` is `True`, then the flow graph visualization is enabled. Under the root of a flow handler, use `.flowgraph` as the path to see a graph of the actions and paths between them in the flows. This requires that the PyDot library is installed.
 
 Eg: if a flow handler is installed under `/some/path/` then navigating to `/some/path/.flowgraph` will show the layout of the flows of that hander. 
+
+Cleaning up expired task state in the database
+---
+If you are using the `DjangoStateStore` backend (which is the default), then the task state will be stored as rows in the database. Although stale tasks will not be returned, the state will stay in the database and not be deleted. To clean it up, you have several options:
+
+- `django-admin.py cleanupflows`
+
+   This is a command which will delete the expired state from the database. You can run it manually or as part of a cronjob.
+   
+- `flows.additional.celery.cleanup_task`
+   
+   If you are using [Celery](http://celeryproject.org/) then you can use this provided task to clean up old task state every 5 minutes.
