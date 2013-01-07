@@ -10,7 +10,7 @@ _packages = find_packages(exclude=["*.tests", "*.tests.*", "tests.*", "tests"])
     
 # common dependencies
 _install_requires = [
-            'django>=1.3',
+            'django>=1.4',
        ]
 
 setup( name='django-flows',
