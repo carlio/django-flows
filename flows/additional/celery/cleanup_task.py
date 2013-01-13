@@ -1,6 +1,7 @@
 
 from celery.task import periodic_task
 from celery.schedules import crontab
+from flows.statestore.django_store import StateModel
 
 
 @periodic_task(run_every=crontab(minute='*/5', hour='*'))

@@ -5,7 +5,7 @@ import time
 
 
 #_version = "1.0.dev%s" % int(time.time())
-_version = "1.0"
+_version = "1.0.1"
 _packages = find_packages(exclude=["*.tests", "*.tests.*", "tests.*", "tests"])
     
 # common dependencies
