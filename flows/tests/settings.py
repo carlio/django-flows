@@ -9,6 +9,8 @@ DATABASES = {
 
 INSTALLED_APPS = ['flows', 'flows.statestore.tests']
 
+SECRET_KEY = 'flow_tests'
+
 _optional = ['django_jenkins', 'south']
 for app in _optional:
     try:
