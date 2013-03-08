@@ -4,9 +4,8 @@ from setuptools import find_packages
 import time
 
 
-#_version = "1.0.dev%s" % int(time.time())
-_version = "1.0.1"
-_packages = find_packages(exclude=["*.tests", "*.tests.*", "tests.*", "tests"])
+_version = "1.1.dev%s" % int(time.time())
+_packages = find_packages(exclude=["*.tests", "*.tests.*", "tests.*", "tests", "example"])
     
 # common dependencies
 _install_requires = [
@@ -18,8 +17,4 @@ setup( name='django-flows',
        version=_version,
        packages=_packages,
        install_requires=_install_requires,
-       scripts=[
-           # 'scripts/manage',
-       ],
-
 )
