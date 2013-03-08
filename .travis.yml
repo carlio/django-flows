@@ -7,6 +7,5 @@ env:
   - DJANGO_VERSION=1.5
 install:
   - "pip install --use-mirrors Django==$DJANGO_VERSION"
-  - "pip install --use-mirrors django-jenkins pylint coverage"
   - "pip install --use-mirrors --editable ."
-script: "django-admin.py jenkins --settings=flows.tests.settings flows"
+script: "django-admin.py test --settings=flows.tests.settings flows"
