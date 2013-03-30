@@ -56,29 +56,39 @@ class FlowComponentMeta(type):
 
 class FlowComponent(object):
     
+    __metaclass__ = FlowComponentMeta
     """
     The metaclass is used to register all possible parts of a flow so
     that they can be looked up by name and added to URL patterns
     """
-    __metaclass__ = FlowComponentMeta
-    
-    
+
+
+    preconditions = []
     """
     Preconditions is a list of conditions which must be satisfied before
     the flow is run. They will be executed in the order they are listed
     in this attribute. See the `flows.preconditions` module for built-in
     options and instructions on custom preconditions.
     """
-    preconditions = []
-    
+
+    skip_on_back = False
     """
     Some flow components should not be revisited when going 'backwards'
     in the flow - for example, `Action`s which change global state rather
     than just the flow state, such as a login or registration action,
-    should not be shown to the user again once clicking 'back'. 
+    should not be shown to the user again once clicking 'back'.
     """
-    skip_on_back = False
-    
+
+
+    def set_url_args(self, *args, **kwargs):
+        """
+        Handles the URL arguments that were used to get to this particular
+        instance of the flow component. This is called before the `prepare`
+        method when handling an incoming request, and when constructing
+        the component in order to reverse lookup a URL.
+        """
+        self.args = args
+        self.kwargs = kwargs
     
     def check_preconditions(self, request):
         """
@@ -97,7 +107,11 @@ class FlowComponent(object):
         The `prepare` method is called before the request is handled
         on each flow component in turn from root to leaf, to allow them
         to preprocess things such as request arguments or to populate
-        state. 
+        state.
+
+        Note: The *args and **kwargs parameters are deprecated in favour
+        of `self.args` and `self.kwargs`, and will be removed in a
+        future release.
         """
         pass
     
@@ -113,11 +127,13 @@ class FlowComponent(object):
         """
         When constructing a URL, flow components may need to provide some
         of the arguments, for example if they consumed and are responsible
-        for some of the arguments dealt with in `prepare`
+        for some of the arguments dealt with in `prepare`. The default
+        behaviour is simply to re-use the arguments which were used when
+        creating this component.
         
         This method should return a pair of (args, kwargs) 
         """
-        return [], {}
+        return self.args, self.kwargs
     
     def send_to(self, class_or_name, with_errors=None):
         """
