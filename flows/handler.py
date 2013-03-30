@@ -84,7 +84,7 @@ class FlowHandler(object):
                     raise Http404
                 
             # create the instances required to handle the request 
-            flow_instance = position.create_instance(state, self.state_store)
+            flow_instance = position.create_instance(state, self.state_store, args, kwargs)
                 
             # deal with the request
             return flow_instance.handle(request, *args, **kwargs)
@@ -167,7 +167,9 @@ class FlowHandler(object):
         
         return HttpResponse(data, content_type='image/png')
         
-    def flow_entry_link(self, request, flow_class_or_name, on_complete_url=None, with_state=False, flow_namespace=None):
+    def flow_entry_link(self, request, flow_class_or_name, on_complete_url=None,
+                              with_state=False, flow_namespace=None, url_args=None, url_kwargs=None):
+
         flow_class = get_by_class_or_name(flow_class_or_name)
         
         position = PossibleFlowPosition(self.app_namespace, flow_namespace, flow_class.get_initial_action_tree())
@@ -176,7 +178,7 @@ class FlowHandler(object):
             state = self._new_state(request, **kwargs)
         else:
             state = {'_id': ''} # TODO: this is a bit of a hack, but task_id is required...
-        instance = position.create_instance(state, self.state_store)
+        instance = position.create_instance(state, self.state_store, url_args=url_args, url_kwargs=url_kwargs)
         
         url = instance.get_absolute_url(include_flow_id=False)
         
@@ -232,17 +234,21 @@ class FlowPositionInstance(object):
     that is, a user is currently performing an action as part of a flow
     """
     
-    def __init__(self, app_namespace, flow_namespace, position, state, state_store):
+    def __init__(self, app_namespace, flow_namespace, position, state, state_store, url_args, url_kwargs):
         self._app_namespace = app_namespace
         self._flow_namespace = flow_namespace
         self._position = position
         self._state = state
         self._flow_components = []
         self.state_store = state_store
+
+        self._url_args = url_args or []
+        self._url_kwargs = url_kwargs or {}
         
         for flow_component_class in self._position.flow_component_classes:
             flow_component = flow_component_class()
             flow_component._flow_position_instance = self
+            flow_component.set_url_args(*self._url_args, **self._url_kwargs)
             flow_component.state = state
             flow_component.task_id = self.task_id
             flow_component.app_namespace = self._app_namespace
@@ -336,7 +342,7 @@ class FlowPositionInstance(object):
         new_position = PossibleFlowPosition(self._app_namespace, self._flow_namespace, tree_root + new_subtree)
         
         # now create an instance of the position with the current state
-        return new_position.create_instance(self._state, self.state_store)
+        return new_position.create_instance(self._state, self.state_store, self._url_args, self._url_kwargs)
 
     
     def handle(self, request, *args, **kwargs):
@@ -351,6 +357,7 @@ class FlowPositionInstance(object):
         if response is None:
             # now call each of the prepare methods for the components
             for flow_component in self._flow_components:
+                # TODO: passing in *args and **kwargs to prepare is deprecated
                 response = flow_component.prepare(request, *args, **kwargs)
                 if response is not None:
                     # we allow prepare methods to give out responses if they
@@ -428,8 +435,9 @@ class PossibleFlowPosition(object):
 
         PossibleFlowPosition.all_positions[self.url_name] = self
             
-    def create_instance(self, state, state_store):
-        return FlowPositionInstance(self.app_namespace, self.flow_namespace, self, state, state_store)
+    def create_instance(self, state, state_store, url_args, url_kwargs):
+        return FlowPositionInstance(self.app_namespace, self.flow_namespace, self, state,
+                                    state_store, url_args, url_kwargs)
     
     def _url_name_from_components(self, components, include_app_namespace=True):
         if self.flow_namespace is None:
