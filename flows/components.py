@@ -38,8 +38,8 @@ class LazyActionSet(list):
 class FlowComponentMeta(type):
     registry = {}
 
-    def __new__(cls, name, bases, attrs):
-        inst = super(FlowComponentMeta, cls).__new__(cls, name, bases, attrs)
+    def __new__(mcs, name, bases, attrs):
+        inst = super(FlowComponentMeta, mcs).__new__(mcs, name, bases, attrs)
 
         parents = [b for b in bases if isinstance(b, FlowComponentMeta)]
         if not parents: 
