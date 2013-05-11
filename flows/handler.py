@@ -180,9 +180,9 @@ class FlowHandler(object):
             state = {'_id': ''} # TODO: this is a bit of a hack, but task_id is required...
         instance = position.create_instance(state, self.state_store, url_args=url_args, url_kwargs=url_kwargs)
         
-        url = instance.get_absolute_url(include_flow_id=False)
+        inst_url = instance.get_absolute_url(include_flow_id=False)
         
-        parts = urlparse.urlparse(url)
+        parts = urlparse.urlparse(inst_url)
         query = urlparse.parse_qs(parts.query)
         if on_complete_url is not None:
             query['_on_complete'] = on_complete_url
