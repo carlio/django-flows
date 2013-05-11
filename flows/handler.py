@@ -403,9 +403,9 @@ class FlowPositionInstance(object):
             
             elif isinstance(response, Action):
                 # this is a new action for the user, so redirect to it
-                url = response.get_absolute_url()
-                response = redirect(url)
-                
+                absurl = response.get_absolute_url()
+                response = redirect(absurl)
+               
             elif isinstance(response, basestring):
                 # this is a string which should be the name of an action
                 # which couldn't be referenced as a class for some reason
