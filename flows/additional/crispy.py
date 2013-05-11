@@ -28,4 +28,4 @@ class FlowsLayout(Layout):
     """
     
     def __init__(self, *args, **kwargs):
-        return super(FlowsLayout, self).__init__(flow_layout, *args, **kwargs)
+        super(FlowsLayout, self).__init__(flow_layout, *args, **kwargs)
