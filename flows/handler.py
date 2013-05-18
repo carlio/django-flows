@@ -168,7 +168,8 @@ class FlowHandler(object):
         return HttpResponse(data, content_type='image/png')
         
     def flow_entry_link(self, request, flow_class_or_name, on_complete_url=None,
-                              with_state=False, flow_namespace=None, url_args=None, url_kwargs=None):
+                              with_state=False, flow_namespace=None, url_args=None, url_kwargs=None,
+                              url_queryargs=None):
 
         flow_class = get_by_class_or_name(flow_class_or_name)
         
@@ -186,6 +187,8 @@ class FlowHandler(object):
         query = urlparse.parse_qs(parts.query)
         if on_complete_url is not None:
             query['_on_complete'] = on_complete_url
+        if url_queryargs:
+            query.update(url_queryargs)
         parts = list(parts)
         parts[4] = urllib.urlencode(query)
         
