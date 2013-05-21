@@ -187,7 +187,7 @@ class FlowHandler(object):
         query = urlparse.parse_qs(parts.query)
         if on_complete_url is not None:
             query['_on_complete'] = on_complete_url
-        if url_queryargs:
+        if url_queryargs is not None:
             query.update(url_queryargs)
         parts = list(parts)
         parts[4] = urllib.urlencode(query)
