@@ -145,7 +145,7 @@ class FlowComponent(object):
         return redirect(url)
 
     def link_to(self, class_or_name, additional_url_params=None):
-        url = self._flow_position_instance.position_instance_for(class_or_name)
+        url = self._flow_position_instance.position_instance_for(class_or_name).get_absolute_url()
         separator = '&' if '?' in url else '?'
         if additional_url_params is not None:
             for k in additional_url_params.keys():
