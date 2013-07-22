@@ -143,10 +143,16 @@ class FlowComponent(object):
         """
         url = self.link_to(class_or_name)
         return redirect(url)
-    
+
     def link_to(self, class_or_name, additional_url_params=None):
-        return self._flow_position_instance.position_instance_for(class_or_name).get_absolute_url()
-    
+        url = self._flow_position_instance.position_instance_for(class_or_name)
+        separator = '&' if '?' in url else '?'
+        if additional_url_params is not None:
+            for k in additional_url_params.keys():
+                url = "%s%s%s=%s" % (url, separator, k, additional_url_params[k],)
+                separator = "&"
+        return url
+
 
 
 
