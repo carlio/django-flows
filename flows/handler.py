@@ -214,7 +214,8 @@ class FlowHandler(object):
         for flow in self._entry_points:
             urlpatterns += self._urls_for_flow(flow_namespace, flow)
         if settings.DEBUG:
-            urlpatterns += patterns('', url('.flowgraph$', self.flow_graph))
+            prefix = flow_namespace if flow_namespace else ''
+            urlpatterns += patterns('', url('%s\.flowgraph$' % prefix, self.flow_graph))
             
         # verify that URLs are unique
         url_list = self.list_urls(urlpatterns)
