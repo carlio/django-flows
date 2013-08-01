@@ -1,4 +1,5 @@
 # -*- coding: UTF-8 -*-
+from weakref import WeakSet
 from django.conf.urls import patterns, url, include
 from django.core.exceptions import ImproperlyConfigured
 from django.core.urlresolvers import reverse
@@ -30,10 +31,47 @@ except ImportError:
     
 
 
+class FlowHandlerBase(object):
+    registry = WeakSet()
 
-class FlowHandler(object):
-    
-    def __init__(self, app_namespace=None, state_store=None):
+    def __init__(self, *args, **kwargs):
+        FlowHandlerBase.registry.add(self)
+        super(FlowHandlerBase, self).__init__(*args, **kwargs)
+
+    @staticmethod
+    def full_flow_graph(request):
+        """
+        This is a Django view function that returns a PNG that has all flows
+        of all `FlowHandler`s created in a Django shell. It can do that because
+        `FlowHandlerBase` keeps track of all `FlowHandler` instances created.
+        Basically it combines all .flowgraph debug URLs. To use it, just
+        add the handler to your URL config like this:
+
+            if settings.DEBUG:
+                urlpatterns += patterns('',
+                    url(r'^\.fullflowgraph$', FlowHandlerBase.flow_graph),
+                )
+        """
+        logger.debug('(%s) flow_graphs' % len(FlowHandlerBase.registry))
+        if not has_pydot:
+            raise ImproperlyConfigured('The pydot library is required to see flowgraph debug output')
+
+        graph = pydot.Dot(graph_type='graph')
+
+        for handler in FlowHandlerBase.registry:
+            logger.debug('--- %s' % handler)
+            for flow in handler._entry_points:
+                handler._add_flow_nodes(graph, flow)
+
+        data = graph.create_png()
+
+        return HttpResponse(data, content_type='image/png')
+
+
+class FlowHandler(FlowHandlerBase):
+
+    def __init__(self, app_namespace=None, state_store=None, *args, **kwargs):
+        super(FlowHandler, self).__init__(*args, **kwargs)
         self._entry_points = []
         self.app_namespace = app_namespace
         self.state_store = state_store or default_state_store
