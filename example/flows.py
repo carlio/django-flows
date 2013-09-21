@@ -1,4 +1,5 @@
 # -*- coding: UTF-8 -*-
+from __future__ import absolute_imports
 from flows.components import Scaffold, Action
 from django import forms
 from django.http import HttpResponseForbidden
