@@ -2,6 +2,7 @@ django-flows
 ============
 
 [![Build Status](https://secure.travis-ci.org/carlio/django-flows.png)](http://travis-ci.org/carlio/django-flows)
+[![Code Quality](https://landscape.io/github/carlio/django-flows/master/landscape.png)](https://landscape.io/github/carlio/django-flows/master)
 
 ``django-flows`` can best be described as 'wizards on steroids'. Its purpose is to keep state and position in complicated flows of logic, allowing optional branches and complicated paths through a series of individual user actions.
 
