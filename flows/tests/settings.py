@@ -11,6 +11,8 @@ INSTALLED_APPS = ['flows', 'flows.statestore.tests']
 
 SECRET_KEY = 'flow_tests'
 
+TEST_RUNNER = 'django.test.simple.DjangoTestSuiteRunner'
+
 _optional = ['django_jenkins', 'south']
 for app in _optional:
     try:

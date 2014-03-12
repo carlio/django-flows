@@ -9,7 +9,7 @@ _packages = find_packages(exclude=["*.tests", "*.tests.*", "tests.*", "tests", "
     
 # common dependencies
 _install_requires = [
-            'django>=1.4,<1.6',
+            'django>=1.4,<1.7',
        ]
 
 _short_description = "django-flows keeps state and position in complicated flows of logic, allowing optional " \
