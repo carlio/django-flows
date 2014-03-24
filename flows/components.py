@@ -1,4 +1,6 @@
 # -*- coding: UTF-8 -*-
+import urllib
+import urlparse
 from django.views.generic.edit import FormView
 from django.forms.forms import Form
 from django.core.exceptions import ImproperlyConfigured
@@ -143,10 +145,21 @@ class FlowComponent(object):
         """
         url = self.link_to(class_or_name)
         return redirect(url)
-    
+
     def link_to(self, class_or_name, additional_url_params=None):
-        return self._flow_position_instance.position_instance_for(class_or_name).get_absolute_url()
-    
+        url = self._flow_position_instance.position_instance_for(class_or_name).get_absolute_url()
+
+        if additional_url_params is not None:
+            parts = urlparse.urlparse(url)
+            query = urlparse.parse_qs(parts.query)
+            query.update(additional_url_params)
+
+            parts = list(parts)
+            parts[4] = urllib.urlencode(query, doseq=True)
+            return urlparse.urlunparse(parts)
+
+        return url
+
 
 
 
