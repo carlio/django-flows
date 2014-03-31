@@ -407,6 +407,17 @@ class FlowPositionInstance(object):
                     break
                 
         if response is None:
+
+            # FIXME: mjtamlyn promises to fix this in Django 1.7, but right now we need
+            # to set up the magic attributes usually set up by a closure in View.as_view
+            # so we can call dispatch on Django>1.5
+            action = self.get_action()
+            if hasattr(action, 'request'):
+                raise Exception('Action re-use?')
+            action.request = request
+            action.args = args
+            action.kwargs = kwargs
+
             # now that everything is set up, we can handle the request
             response = self.get_action().dispatch(request, *args, **kwargs)
             
