@@ -169,10 +169,9 @@ class FlowHandler(FlowHandlerBase):
             raise TypeError(str(flow_component))
 
         return urlpatterns
-    
-    
+
     def register_entry_point(self, flow_component):
-        self._entry_points.append( flow_component )
+        self._entry_points.append(flow_component)
         
     def _add_flow_nodes(self, graph, component, root=None, depth=0):
         
@@ -206,32 +205,109 @@ class FlowHandler(FlowHandlerBase):
         return HttpResponse(data, content_type='image/png')
         
     def flow_entry_link(self, request, flow_class_or_name, on_complete_url=None,
-                              with_state=False, flow_namespace=None, url_args=None, url_kwargs=None,
-                              url_queryargs=None):
+                        with_state=False, initial_state=None,
+                        flow_namespace=None,
+                        url_args=None, url_kwargs=None, url_queryargs=None):
+        """
+        This method is how you create a URL which allows a user to enter a flow.
+
+        There are two main times you will need this, both with different consequences
+        for the values you should pass as arguments.
+
+        1) If you display a page to a user including a URL which starts a flow, but which
+        the user may not necessarily begin, then you should use a stateless task. That
+        is to say, don't include `initial_state`. If the flow needs to behave differently
+        based on some context, then include it using `url_args` and `url_kwargs`, and have
+        the flow Action or Scaffold handle that in their `url` configuration. As an example,
+        you may be on a product page, and want a link for the user should they choose to
+        purchase it. In this case, few users may actually click the link, so creating
+        task state which will never be used is inefficient. In that case, the product ID
+        could be passed into the flow via URL parameters - this is more like a normal Django
+        URL
+
+        2) If a user performs an action that enters them into a flow explicitly. If a
+        user clicks something and you want the user to immediately enter a flow, you
+        can pass in `initial_state`.
+
+        Parameters
+        ----------
+        request : django.http.HttpRequest
+           A request object supplied by Django
+
+        flow_class_or_name : str | Action | Scaffold
+          The flow entry point to create a URL for. This can be a string to do a lookup
+          by name, or the Action or Scaffold class itself, which is preferred. Note that
+          the flow action must have been registered as an entry point with this handler
+          via `register_entry_point`
+
+        on_complete_url : str
+          The URL to redirect to once the flow is complete, used if the actions do not
+          redirect themselves and instead rely on the automatic transitions.
+
+        with_state : bool
+          *Deprecated* By default, state is not created until the user begins the flow,
+          to avoid creating unnecessary database objects, especially when the link is
+          simply created to be displayed in a page. Sometimes, however, when constructing
+          a link to redirect to as the result of a user action, it's useful to create the
+          state for the flow. This has been deprecated in favour of "initial_state"
+
+        initial_state : dict
+          If you want to create a flow with some initial state, you can pass it in here. Note
+          this is not suitable for, eg, URLs on an HTML page, since it would create a task
+          state object for every pageview regardless of the user's intention. It is much
+          better if the user has performed an action, such as submitted a form, which
+          implies they want to immediately enter a flow. See also `url_args` and `url_kwargs`.
+
+        flow_namespace : str
+
+        url_args : list | tuple
+        url_kwargs : dict
+          The arguments to pass in to the URL for the flow, if your actions specify any
+          parameters in their URL pattern. This is typically the way to supply "initial
+          state" for flow entry URLs generated before a user action has taken place. See
+          also `initial_state`.
+
+        url_queryargs : dict
+          Query parameters to append to the generated URL. You should probably be using
+          `url_args` and `url_kwargs` along with URL patterns, or `initial_state`, instead.
+        """
+
+        if initial_state is None:
+            initial_state = {}
+        else:
+            # override the with_state option in the case that
+            # we have some initial state to explicitly set
+            with_state = True
 
         flow_class = get_by_class_or_name(flow_class_or_name)
         
         position = PossibleFlowPosition(self.app_namespace, flow_namespace, flow_class.get_initial_action_tree())
+
         if with_state:
-            kwargs = {} if on_complete_url is None else {'_on_complete': on_complete_url}
-            state = self._new_state(request, **kwargs)
+            if on_complete_url is not None:
+                initial_state['_on_complete'] = on_complete_url
+            state = self._new_state(request, **initial_state)
         else:
-            state = {'_id': ''} # TODO: this is a bit of a hack, but task_id is required...
+            state = {'_id': ''}  # TODO: this is a bit of a hack, but task_id is required...
         instance = position.create_instance(state, self.state_store, url_args=url_args, url_kwargs=url_kwargs)
-        
-        inst_url = instance.get_absolute_url(include_flow_id=False)
-        
+
+        # if we have state, then we need to include the task ID in the URL
+        # returned, otherwise it'll be seen as a "new entry" and new empty
+        # task state will be created
+        inst_url = instance.get_absolute_url(include_flow_id=with_state)
+
         parts = urlparse.urlparse(inst_url)
-        query = urlparse.parse_qs(parts.query)
+        query = urlparse.parse_qsl(parts.query)
+
         if on_complete_url is not None:
             query['_on_complete'] = on_complete_url
         if url_queryargs is not None:
             query.update(url_queryargs)
+
         parts = list(parts)
-        parts[4] = urllib.urlencode(query)
-        
-        return urlparse.urlunparse(parts)        
-        
+        parts[4] = urllib.urlencode(query, doseq=True)
+
+        return urlparse.urlunparse(parts)
         
     def list_urls(self, urllist, prefix=''):
         urls = []
@@ -321,8 +397,8 @@ class FlowPositionInstance(object):
         return self._history.get_back_url()
     
     def get_absolute_url(self, include_flow_id=True):
-        args=[]
-        kwargs={}
+        args = []
+        kwargs = {}
         for flow_component in self._flow_components:
             flow_args, flow_kwargs = flow_component.get_url_args()
             args += flow_args
@@ -366,8 +442,7 @@ class FlowPositionInstance(object):
                 break
         else:
             raise ValueError('Could not figure out how to redirect to %s' % FC)
-        
-        
+
         # so the new tree is from the root to the parent of the one we just found,
         # coupled with the initial subtree from the component we're tring to redirect
         # to
@@ -385,7 +460,6 @@ class FlowPositionInstance(object):
         
         # now create an instance of the position with the current state
         return new_position.create_instance(self._state, self.state_store, self._url_args, self._url_kwargs)
-
     
     def handle(self, request, *args, **kwargs):
         # first validate that we can actually run by checking for
