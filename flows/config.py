@@ -1,9 +1,26 @@
 # -*- coding: UTF-8 -*-
-
+import django
 from django.conf import settings
+
 
 def _get_setting(name, default):
     return getattr( settings, name, default )
+
+
+def _setup():
+    from flows import statestore
+    statestore.setup()
+
+
+if django.VERSION >= (1, 7):
+    from django.apps import AppConfig
+
+    class FlowsAppConfig(AppConfig):
+        name = 'flows'
+        def ready(self):
+            _setup()
+else:
+    _setup()
 
 
 # General settings

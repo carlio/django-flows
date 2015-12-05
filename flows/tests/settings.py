@@ -1,23 +1,28 @@
-#@PydevCodeAnalysisIgnore
+import django
 
 DATABASES = {
-        'default': {
-                'ENGINE': 'django.db.backends.sqlite3',
-                'NAME': ':memory:',
-        }
+    'default': {
+        'ENGINE': 'django.db.backends.sqlite3',
+        'NAME': ':memory:',
+    }
 }
 
-INSTALLED_APPS = ['flows', 'flows.statestore.tests']
+INSTALLED_APPS = ['flows', 'flows.statestore.tests', 'django_nose']
 
 SECRET_KEY = 'flow_tests'
 
-TEST_RUNNER = 'django.test.simple.DjangoTestSuiteRunner'
+if django.VERSION < (1, 6):
+    TEST_RUNNER = 'django.test.simple.DjangoTestSuiteRunner'
 
-_optional = ['django_jenkins', 'south']
-for app in _optional:
+TEST_RUNNER = 'django_nose.NoseTestSuiteRunner'
+
+MIDDLEWARE_CLASSES = []
+ROOT_URLCONF = ''
+
+if django.VERSION < (1, 7):
     try:
-        __import__(app)
+        __import__('south')
     except ImportError:
         pass
     else:
-        INSTALLED_APPS.append(app)
+        INSTALLED_APPS.append('south')

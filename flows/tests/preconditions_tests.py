@@ -4,6 +4,7 @@ from flows.preconditions import RequiredState
 from flows.tests.utils import MockFlow
 from django.http import HttpResponse
 
+
 class RequiredStateTest(unittest.TestCase):
     
     def test_all_state_present(self):

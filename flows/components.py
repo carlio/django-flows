@@ -1,9 +1,11 @@
 # -*- coding: UTF-8 -*-
+import inspect
+import django
+import six
 from django.views.generic.edit import FormView
 from django.forms.forms import Form
 from django.core.exceptions import ImproperlyConfigured
 from django import forms
-import inspect
 from flows import config
 from django.shortcuts import redirect
 from django.utils.safestring import mark_safe
@@ -14,8 +16,6 @@ from django.utils.safestring import mark_safe
 # responsibility for moving to the next Action and assumes that the 
 # Transition will take care of this  
 COMPLETE = 'complete'
-
-
 
 
 class LazyActionSet(list):
@@ -53,16 +53,8 @@ class FlowComponentMeta(type):
         return inst
 
 
-
-class FlowComponent(object):
+class FlowComponent(six.with_metaclass(FlowComponentMeta, object)):
     
-    __metaclass__ = FlowComponentMeta
-    """
-    The metaclass is used to register all possible parts of a flow so
-    that they can be looked up by name and added to URL patterns
-    """
-
-
     preconditions = []
     """
     Preconditions is a list of conditions which must be satisfied before
@@ -78,7 +70,6 @@ class FlowComponent(object):
     than just the flow state, such as a login or registration action,
     should not be shown to the user again once clicking 'back'.
     """
-
 
     def set_url_args(self, *args, **kwargs):
         """
@@ -146,8 +137,6 @@ class FlowComponent(object):
     
     def link_to(self, class_or_name, additional_url_params=None):
         return self._flow_position_instance.position_instance_for(class_or_name).get_absolute_url()
-    
-
 
 
 class Scaffold(FlowComponent):
@@ -194,13 +183,11 @@ class Scaffold(FlowComponent):
             transition = transition()
             
         return transition
-    
 
     @classmethod    
     def get_initial_action_tree(cls):
         first_item = cls.action_set[0]
         return [cls] + first_item.get_initial_action_tree()
-        
 
     def handle_response(self, response):
         if response != COMPLETE:
@@ -220,8 +207,6 @@ class Scaffold(FlowComponent):
         if next_class is not COMPLETE:
             return self.send_to(next_class)
         return COMPLETE
-        
-        
 
 
 class FlowRenderer(object):
@@ -256,11 +241,32 @@ class DefaultActionForm(Form):
     expected behaviour (user GETs content, user POSTs to move to
     next step). The default form is essentially a no-op.
     """
+
     pass
 
 
+if django.VERSION >= (1, 8):
+    # Yick. As of Django 1.8, FormView has a metaclass, which
+    # means Actions have two metaclasses including the one created
+    # by django-flows. This results in:
+    #   'metaclass conflict: the metaclass of a derived class must be a
+    #    (non-strict) subclass of the metaclasses of all its bases'
+    # so therefore we create a small dummy class to make sure both
+    # metaclasses are used:
+    from django.views.generic.edit import FormMixinBase
+    class ActionMeta(FlowComponentMeta, FormMixinBase):
+        def __new__(cls, name, bases, attrs):
+            # first call the form mixin as it doesn't do much except
+            # update 'attrs'
+            FormMixinBase.__new__(cls, name, bases, attrs)
+            # this is going to break isn't it :(
+            return FlowComponentMeta.__new__(cls, name, bases, attrs)
+    action_meta = ActionMeta
+else:
+    action_meta = FlowComponentMeta
 
-class Action(FlowComponent, FormView):
+
+class Action(six.with_metaclass(action_meta, FlowComponent, FormView)):
 
     """
     The `form_class` attribute controls which form object is used in
@@ -319,8 +325,6 @@ class Action(FlowComponent, FormView):
         """
         return COMPLETE
     
-    
-
 
 # Internal utility methods and classes
 
@@ -334,7 +338,8 @@ def get_by_class_or_name(class_or_string):
     
     
 _flow_ids = {}
-    
+
+
 def name_for_flow(flow):
     
     if isinstance(flow, FlowComponent):
@@ -350,5 +355,3 @@ def name_for_flow(flow):
         name = str(len(_flow_ids))
         _flow_ids[key] = name
     return name
-                                        
-

@@ -6,14 +6,20 @@ from flows import config
 from datetime import timedelta
 
 
-
 class StateModelManager(models.Manager):
     def get_queryset(self):
         timeout = timezone.now() - timedelta(seconds=config.FLOWS_TASK_IDLE_TIMEOUT)
-        return super(StateModelManager, self).get_query_set().filter( last_access__gte=timeout )
+
+        qs = super(StateModelManager, self)
+        if hasattr(qs, 'get_queryset'):
+            qs = qs.get_queryset()
+        else:
+            qs = qs.get_query_set()
+
+        return qs.filter( last_access__gte=timeout )
 
     if django.VERSION < (1, 6):
-        # compatability for older django versions
+        # compatibility for older django versions
         def get_query_set(self):
             return self.get_queryset()
 
