@@ -1,5 +1,5 @@
 # -*- coding: UTF-8 -*-
-from django.utils.importlib import import_module
+from zipimport import import_module
 from flows import config
 
 
