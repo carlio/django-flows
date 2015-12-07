@@ -1,8 +1,7 @@
 from flows.statestore.tests.models import TestModel
 
-    
 
-def test_store_state(case, store):
+def store_state_works(case, store):
     
     test_model = TestModel.objects.create(fruit='apple', count=34)
     
@@ -32,4 +31,3 @@ def test_store_state(case, store):
     
     case.assertTrue('pies' in fetched_state)
     case.assertEqual({'r': 2, 'theta': 20 }, fetched_state['pies'])
-        

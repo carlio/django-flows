@@ -1,3 +1,4 @@
+import django
 from flows.statestore.base import StateStoreBase, StateNotFound
 from django.db import models
 from django.utils import timezone
@@ -5,11 +6,22 @@ from flows import config
 from datetime import timedelta
 
 
-
 class StateModelManager(models.Manager):
-    def get_query_set(self):
+    def get_queryset(self):
         timeout = timezone.now() - timedelta(seconds=config.FLOWS_TASK_IDLE_TIMEOUT)
-        return super(StateModelManager, self).get_query_set().filter( last_access__gte=timeout )
+
+        qs = super(StateModelManager, self)
+        if hasattr(qs, 'get_queryset'):
+            qs = qs.get_queryset()
+        else:
+            qs = qs.get_query_set()
+
+        return qs.filter( last_access__gte=timeout )
+
+    if django.VERSION < (1, 6):
+        # compatibility for older django versions
+        def get_query_set(self):
+            return self.get_queryset()
 
     def remove_expired_state(self):
         timeout = config.FLOWS_TASK_IDLE_TIMEOUT

@@ -1,12 +1,11 @@
 
-from django.test import TestCase
+import unittest
 from flows.statestore.django_store import StateStore
-from flows.statestore.tests.utils import test_store_state
+from flows.statestore.tests.utils import store_state_works
     
 
-class DjangoStateStoreTest(TestCase):
+class DjangoStateStoreTest(unittest.TestCase):
     
     def test_django_store_state(self):
         store = StateStore()
-        test_store_state(self, store)
-        
+        store_state_works(self, store)

@@ -1,10 +1,9 @@
 # -*- coding: UTF-8 -*-
-
 from django.conf import settings
+
 
 def _get_setting(name, default):
     return getattr( settings, name, default )
-
 
 # General settings
 FLOWS_STATE_STORE = _get_setting('FLOWS_STATE_STORE', 'flows.statestore.django_store')

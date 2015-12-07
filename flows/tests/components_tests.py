@@ -6,8 +6,10 @@ from flows.components import Action, Scaffold
 class Action1(Action):
     url = '/1$'
 
+
 class Action2(Action):
     url = '/2$'
+
 
 class Scaffold1(Scaffold):
     url = '/scaff1'
