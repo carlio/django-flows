@@ -1,2 +1,2 @@
 
-default_app_config = 'flows.config.FlowsAppConfig'
+default_app_config = 'flows.appconfig.FlowsAppConfig'

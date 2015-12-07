@@ -1,5 +1,5 @@
 # -*- coding: UTF-8 -*-
-from zipimport import import_module
+from importlib import import_module
 from flows import config
 
 
